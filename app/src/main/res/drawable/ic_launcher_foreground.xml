@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Back card (tilted) -->
+    <path
+        android:fillColor="#E0E6E1"
+        android:pathData="M37,28 L67,24 C69.2,23.7 71.3,25.2 71.6,27.4 L77,69 C77.3,71.2 75.8,73.3 73.6,73.6 L43.6,77.6 C41.4,77.9 39.3,76.4 39,74.2 L33.6,32.6 C33.3,30.4 34.8,28.3 37,28 Z" />
+
+    <!-- Main Front Card (White) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,30 C38,27.8 39.8,26 42,26 L66,26 C68.2,26 70,27.8 70,30 L70,78 C70,80.2 68.2,82 66,82 L42,82 C39.8,82 38,80.2 38,78 Z" />
+
+    <!-- Card inner golden border -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#C5A059"
+        android:strokeWidth="0.8"
+        android:pathData="M41,33 C41,32 41.8,31 42.8,31 L65.2,31 C66.2,31 67,31.8 67,32.8 L67,75.2 C67,76.2 66.2,77 65.2,77 L42.8,77 C41.8,77 41,76.2 41,75.2 Z" />
+
+    <!-- Ace letter 'A' on top left -->
+    <path
+        android:fillColor="#1B1C18"
+        android:pathData="M43.5,37.5 L45,33.5 L46.5,37.5 M44,36.5 L46,36.5" />
+
+    <!-- Center Spade Symbol -->
+    <path
+        android:fillColor="#1B1C18"
+        android:pathData="M54,43 C51.5,47.5 46.5,51 46.5,54.5 C46.5,57.5 49,60 52,60 C53.3,60 54,59.3 54,59.3 C54,59.3 54.7,60 56,60 C59,60 61.5,57.5 61.5,54.5 C61.5,51 56.5,47.5 54,43 Z" />
+    <path
+        android:fillColor="#1B1C18"
+        android:pathData="M52.5,58.5 L55.5,58.5 L56.5,65 L51.5,65 Z" />
+
+    <!-- Little Diamond / Crown accent in Gold -->
+    <path
+        android:fillColor="#D4AF37"
+        android:pathData="M54,69 L56,71.5 L54,74 L52,71.5 Z" />
+</vector>

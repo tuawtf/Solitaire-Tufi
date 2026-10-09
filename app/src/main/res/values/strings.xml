@@ -1,0 +1,30 @@
+<resources>
+    <string name="app_name">Solitaire</string>
+    <string name="title_solitaire">Solitaire</string>
+    <string name="title_klondike">Klondike</string>
+    <string name="action_new_game">New Game</string>
+    <string name="action_favorite">Favorilere Ekle / Çıkar</string>
+    <string name="action_back">Geri</string>
+    <string name="action_undo">Geri Al</string>
+    <string name="action_give_up">Pes Et</string>
+    <string name="action_hint">İpucu</string>
+    <string name="action_auto_complete">Otomatik Tamamla</string>
+    <string name="stats_win_ratio">Kazanma Oranı</string>
+    <string name="stats_played">Oynanan</string>
+    <string name="stats_won">Kazanılan</string>
+    <string name="game_ready_title">Oyun Masası Hazır</string>
+    <string name="game_ready_desc">Oyun motoru sonraki adımda bağlanacak. Kurallar ve kart animasyonları için iskelet hazır.</string>
+    <string name="dialog_give_up_title">Pes Etmek İstiyor Musunuz?</string>
+    <string name="dialog_give_up_message">Mevcut oyunu sonlandırmak üzeresiniz. Ne yapmak istersiniz?</string>
+    <string name="dialog_new_game">Yeni Oyun</string>
+    <string name="dialog_return_home">Ana Menü</string>
+    <string name="dialog_cancel">Vazgeç</string>
+    <string name="dialog_win_title">Tebrikler, Kazandınız!</string>
+    <string name="dialog_win_message">Tüm kartları başarıyla foundation yuvalarına yerleştirdiniz.</string>
+    <string name="dialog_no_moves_title">Hamle Kalmadı</string>
+    <string name="dialog_no_moves_message">Tahtada oynanabilecek başka hamle bulunmuyor.</string>
+    <string name="result_title">Oyun Tamamlandı!</string>
+    <string name="result_new_record">Yeni Rekor!</string>
+    <string name="score_title">Skor</string>
+    <string name="difficulty_title">Zorluk</string>
+</resources>

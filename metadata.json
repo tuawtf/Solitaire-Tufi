@@ -1,0 +1,6 @@
+{
+  "name": "Solitaire",
+  "description": "Material 3 Solitaire card game skeleton supporting Klondike, Spider, FreeCell, and Pyramid modes with dynamic theming and MVVM architecture.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
