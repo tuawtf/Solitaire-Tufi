@@ -2,6 +2,8 @@ package com.example.ui.game.klondike
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.example.game.CardModel
 import com.example.game.Suit
 
@@ -11,11 +13,17 @@ sealed interface DragSource {
   data class Foundation(val suit: Suit) : DragSource
 }
 
+sealed interface DropTarget {
+  data class Tableau(val columnIndex: Int) : DropTarget
+  data class Foundation(val suit: Suit) : DropTarget
+}
+
 data class DraggedCardData(
   val cards: List<CardModel>,
   val source: DragSource,
-  val dragOffset: Offset,
-  val touchOffset: Offset = Offset.Zero,
+  val grabOffset: Offset,
+  val cardWidth: Dp = 48.dp,
+  val cardHeight: Dp = 67.dp,
 )
 
 class DragDropController {
@@ -31,20 +39,20 @@ class DragDropController {
   }
 
   fun findDropTarget(position: Offset): DropTarget? {
-    // 1. Check foundations
+    // 1. Check foundation bounds (slightly inflated for smooth target detection)
     for ((suit, bounds) in foundationBounds) {
-      if (bounds.inflate(12f).contains(position)) {
+      if (bounds.inflate(14f).contains(position)) {
         return DropTarget.Foundation(suit)
       }
     }
 
-    // 2. Check tableau columns (expand vertically downwards so dropping anywhere along column works)
+    // 2. Check tableau columns (expand horizontally to eliminate gap dead zones and vertically downwards)
     for ((colIndex, bounds) in tableauBounds) {
       val expandedBounds = Rect(
-        left = bounds.left - 8f,
-        top = bounds.top - 8f,
-        right = bounds.right + 8f,
-        bottom = bounds.bottom + 600f, // allow drop across cascade
+        left = bounds.left - 6f,
+        top = bounds.top - 12f,
+        right = bounds.right + 6f,
+        bottom = bounds.bottom + 1200f,
       )
       if (expandedBounds.contains(position)) {
         return DropTarget.Tableau(colIndex)
@@ -53,9 +61,4 @@ class DragDropController {
 
     return null
   }
-}
-
-sealed interface DropTarget {
-  data class Tableau(val columnIndex: Int) : DropTarget
-  data class Foundation(val suit: Suit) : DropTarget
 }

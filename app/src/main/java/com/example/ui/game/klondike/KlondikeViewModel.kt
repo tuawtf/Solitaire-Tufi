@@ -51,7 +51,6 @@ class KlondikeViewModel(application: Application) : AndroidViewModel(application
   private val _isNewHighScore = MutableStateFlow(false)
   val isNewHighScore: StateFlow<Boolean> = _isNewHighScore.asStateFlow()
 
-  // Reactive Room stats for current mode & draw selection
   val currentModeStats: StateFlow<GameModeStatsEntity?> = gameState
     .flatMapLatest { state ->
       statsRepository.getStats("KLONDIKE", state.difficulty, state.drawMode)
@@ -80,13 +79,15 @@ class KlondikeViewModel(application: Application) : AndroidViewModel(application
     }
   }
 
+  /**
+   * Starts timer counting immediately upon game creation and pauses upon win.
+   */
   private fun startTimer() {
     timerJob?.cancel()
     timerJob = viewModelScope.launch {
       while (isActive) {
         delay(1000L)
-        val state = engine.currentState
-        if (!state.isWon && (state.moveCount > 0 || state.elapsedSeconds > 0)) {
+        if (!engine.currentState.isWon) {
           engine.tickTimer(1L)
         }
       }
@@ -150,6 +151,7 @@ class KlondikeViewModel(application: Application) : AndroidViewModel(application
     _isNewHighScore.value = false
     engine.startNewGame(difficulty = difficulty, drawMode = difficulty.defaultDrawMode)
     updateCanUndo()
+    startTimer()
     viewModelScope.launch {
       statsRepository.recordGamePlayed("KLONDIKE", difficulty, difficulty.defaultDrawMode)
     }
@@ -161,6 +163,7 @@ class KlondikeViewModel(application: Application) : AndroidViewModel(application
     _isNewHighScore.value = false
     engine.startNewGame(difficulty = engine.currentState.difficulty, drawMode = drawMode)
     updateCanUndo()
+    startTimer()
     viewModelScope.launch {
       statsRepository.recordGamePlayed("KLONDIKE", engine.currentState.difficulty, drawMode)
     }
@@ -174,6 +177,7 @@ class KlondikeViewModel(application: Application) : AndroidViewModel(application
     val draw = engine.currentState.drawMode
     engine.startNewGame(difficulty = diff, drawMode = draw)
     updateCanUndo()
+    startTimer()
     viewModelScope.launch {
       statsRepository.recordGamePlayed("KLONDIKE", diff, draw)
     }
@@ -185,6 +189,7 @@ class KlondikeViewModel(application: Application) : AndroidViewModel(application
     _isNewHighScore.value = false
     engine.restartGame()
     updateCanUndo()
+    startTimer()
   }
 
   fun drawFromStock(): Boolean {
