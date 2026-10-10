@@ -1,0 +1,9 @@
+Solitaire, klasikten şaşmayanlar için geliştirilmiş, reklamsız, izleyicisiz ve %100 çevrimdışı çalışan modern bir Klondike Solitaire oyunudur.
+
+Özellikler:
+- Material 3 Tasarımı: Dinamik renk paleti, koyu/açık tema ve modern arayüz.
+- Esnek Oynanış: Dokunarak veya sürükleyerek kart yerleştirme seçeneği.
+- Klasik Kurallar: 1 kart veya 3 kart çekme modları.
+- Zorluk Seçenekleri: Kolay, Normal ve Zor kart dağıtımları.
+- Ses ve Titreşim: Programatik sentezlenmiş rahatlatıcı kart sesleri ve haptik geri bildirim.
+- Tamamen Gizli ve Çevrimdışı: İnternet izni gerektirmez, kişisel verilerinizi toplamaz.

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.QueryStats
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
@@ -81,6 +82,7 @@ fun HomeRoute(
   viewModel: HomeViewModel,
   onStartNewGame: (GameType, DifficultyMode, DrawMode) -> Unit,
   onResumeGame: (GameType) -> Unit,
+  onOpenSettings: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -88,7 +90,7 @@ fun HomeRoute(
   HomeScreen(
     uiState = uiState,
     onSelectGameType = viewModel::selectGameType,
-    onToggleFavorite = viewModel::toggleFavorite,
+    onOpenSettings = onOpenSettings,
     onNewGameClicked = viewModel::onNewGameClicked,
     onConfirmOverwrite = viewModel::confirmOverwriteAndShowDialog,
     onDismissOverwrite = viewModel::dismissOverwriteDialog,
@@ -109,7 +111,7 @@ fun HomeRoute(
 fun HomeScreen(
   uiState: HomeUiState,
   onSelectGameType: (GameType) -> Unit,
-  onToggleFavorite: () -> Unit,
+  onOpenSettings: () -> Unit,
   onNewGameClicked: () -> Unit,
   onConfirmOverwrite: () -> Unit,
   onDismissOverwrite: () -> Unit,
@@ -136,13 +138,13 @@ fun HomeScreen(
         },
         actions = {
           IconButton(
-            onClick = onToggleFavorite,
-            modifier = Modifier.testTag("favorite_button"),
+            onClick = onOpenSettings,
+            modifier = Modifier.testTag("settings_button"),
           ) {
             Icon(
-              imageVector = if (uiState.isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
-              contentDescription = stringResource(R.string.action_favorite),
-              tint = if (uiState.isFavorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+              imageVector = Icons.Outlined.Settings,
+              contentDescription = "Ayarlar",
+              tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
           }
         },
@@ -770,7 +772,7 @@ private fun HomeScreenPreview() {
         ),
       ),
       onSelectGameType = {},
-      onToggleFavorite = {},
+      onOpenSettings = {},
       onNewGameClicked = {},
       onConfirmOverwrite = {},
       onDismissOverwrite = {},

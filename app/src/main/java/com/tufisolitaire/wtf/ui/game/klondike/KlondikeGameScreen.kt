@@ -102,6 +102,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -165,6 +166,10 @@ fun KlondikeGameRoute(
   val isNewHighScore by viewModel.isNewHighScore.collectAsStateWithLifecycle()
   val modeStats by viewModel.currentModeStats.collectAsStateWithLifecycle()
 
+  val context = LocalContext.current
+  val settingsRepository = remember(context) { com.tufisolitaire.wtf.data.settings.SettingsRepository(context) }
+  val settings by settingsRepository.settingsFlow.collectAsStateWithLifecycle(initialValue = com.tufisolitaire.wtf.data.settings.AppSettings())
+
   KlondikeGameScreen(
     gameState = gameState,
     canUndo = canUndo,
@@ -174,6 +179,7 @@ fun KlondikeGameRoute(
     isCelebrating = isCelebrating,
     isNewHighScore = isNewHighScore,
     modeStats = modeStats,
+    settings = settings,
     onDrawFromStock = viewModel::drawFromStock,
     onUndo = viewModel::undo,
     onRestartGame = viewModel::restartGame,
@@ -213,6 +219,7 @@ fun KlondikeGameScreen(
   isCelebrating: Boolean = false,
   isNewHighScore: Boolean,
   modeStats: GameModeStatsEntity?,
+  settings: com.tufisolitaire.wtf.data.settings.AppSettings = com.tufisolitaire.wtf.data.settings.AppSettings(),
   onDrawFromStock: () -> Boolean,
   onUndo: () -> Boolean,
   onRestartGame: () -> Unit,
@@ -236,6 +243,30 @@ fun KlondikeGameScreen(
   var showGiveUpDialog by remember { mutableStateOf(false) }
   var showExitConfirmDialog by remember { mutableStateOf(false) }
 
+  val context = androidx.compose.ui.platform.LocalContext.current
+  val soundManager = remember(context) { com.tufisolitaire.wtf.sound.SoundManager(context) }
+  val hapticsManager = remember(context) { com.tufisolitaire.wtf.haptics.HapticsManager(context) }
+
+  // Keep screen on DisposableEffect
+  DisposableEffect(settings.keepScreenOn) {
+    val activity = context as? android.app.Activity
+    if (settings.keepScreenOn && activity != null) {
+      activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+      onDispose {
+        activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+      }
+    } else {
+      onDispose { }
+    }
+  }
+
+  // Play win sound when celebrating
+  LaunchedEffect(isCelebrating) {
+    if (isCelebrating) {
+      soundManager.playWinSound(settings)
+    }
+  }
+
   val handleBackRequest = {
     if (gameState.moveCount > 0 && !gameState.isWon) {
       showExitConfirmDialog = true
@@ -258,54 +289,56 @@ fun KlondikeGameScreen(
   var boardOriginRoot by remember { mutableStateOf(Offset.Zero) }
 
   val handleTableauCardTap: (Int, Int) -> Unit = { colIndex, cardIndex ->
-    val col = gameState.tableau.getOrNull(colIndex)
-    if (col != null && cardIndex in col.indices) {
-      val card = col[cardIndex]
-      if (card.isFaceUp) {
-        val isLastCardInCol = cardIndex == col.lastIndex
-        var moved = false
+    if (settings.tapToPlace) {
+      val col = gameState.tableau.getOrNull(colIndex)
+      if (col != null && cardIndex in col.indices) {
+        val card = col[cardIndex]
+        if (card.isFaceUp) {
+          val isLastCardInCol = cardIndex == col.lastIndex
+          var moved = false
 
-        // 1. If it's the last card in the column, try moving to foundation first
-        if (isLastCardInCol) {
-          val foundationPile = gameState.foundations[card.suit] ?: emptyList()
-          if (card.canStackOnFoundation(foundationPile.lastOrNull())) {
-            moved = onMoveTableauToFoundation(colIndex)
-          }
-        }
-
-        // 2. If not moved to foundation, try moving to another tableau column
-        if (!moved) {
-          // Try non-empty target columns first
-          for (targetCol in gameState.tableau.indices) {
-            if (targetCol == colIndex) continue
-            val targetCards = gameState.tableau[targetCol]
-            if (targetCards.isNotEmpty()) {
-              val targetTop = targetCards.last()
-              if (card.canStackOnTableau(targetTop)) {
-                moved = onMoveTableauToTableau(colIndex, cardIndex, targetCol)
-                if (moved) break
-              }
+          // 1. If it's the last card in the column, try moving to foundation first
+          if (isLastCardInCol) {
+            val foundationPile = gameState.foundations[card.suit] ?: emptyList()
+            if (card.canStackOnFoundation(foundationPile.lastOrNull())) {
+              moved = onMoveTableauToFoundation(colIndex)
             }
           }
 
-          // If still not moved and card is a KING, only move to empty column if NOT already at index 0
-          // (moving a King that is already the root card of a column to an empty column is a meaningless move)
-          if (!moved && card.rank == com.tufisolitaire.wtf.game.CardRank.KING && cardIndex > 0) {
+          // 2. If not moved to foundation, try moving to another tableau column
+          if (!moved) {
+            // Try non-empty target columns first
             for (targetCol in gameState.tableau.indices) {
               if (targetCol == colIndex) continue
               val targetCards = gameState.tableau[targetCol]
-              if (targetCards.isEmpty()) {
-                moved = onMoveTableauToTableau(colIndex, cardIndex, targetCol)
-                if (moved) break
+              if (targetCards.isNotEmpty()) {
+                val targetTop = targetCards.last()
+                if (card.canStackOnTableau(targetTop)) {
+                  moved = onMoveTableauToTableau(colIndex, cardIndex, targetCol)
+                  if (moved) break
+                }
+              }
+            }
+
+            if (!moved && card.rank == com.tufisolitaire.wtf.game.CardRank.KING && cardIndex > 0) {
+              for (targetCol in gameState.tableau.indices) {
+                if (targetCol == colIndex) continue
+                val targetCards = gameState.tableau[targetCol]
+                if (targetCards.isEmpty()) {
+                  moved = onMoveTableauToTableau(colIndex, cardIndex, targetCol)
+                  if (moved) break
+                }
               }
             }
           }
-        }
 
-        if (moved) {
-          haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        } else {
-          haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+          if (moved) {
+            soundManager.playCardMove(settings)
+            hapticsManager.performMove(haptic, settings)
+          } else {
+            soundManager.playInvalidMove(settings)
+            hapticsManager.performInvalidMove(haptic, settings)
+          }
         }
       }
     }
@@ -333,6 +366,9 @@ fun KlondikeGameScreen(
             onMoveTableauToTableau = onMoveTableauToTableau,
             onMoveFoundationToTableau = onMoveFoundationToTableau,
             haptic = haptic,
+            soundManager = soundManager,
+            hapticsManager = hapticsManager,
+            settings = settings,
           )
         }
 
@@ -345,7 +381,7 @@ fun KlondikeGameScreen(
             val anim = Animatable(fingerRootPosition, Offset.VectorConverter)
             anim.animateTo(
               targetValue = startDragRootPosition,
-              animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+              animationSpec = tween(durationMillis = if (settings.animationsEnabled) 180 else 0, easing = FastOutSlowInEasing),
             ) {
               fingerRootPosition = value
             }
@@ -364,14 +400,14 @@ fun KlondikeGameScreen(
         val anim = Animatable(fingerRootPosition, Offset.VectorConverter)
         anim.animateTo(
           targetValue = startDragRootPosition,
-          animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+          animationSpec = tween(durationMillis = if (settings.animationsEnabled) 180 else 0, easing = FastOutSlowInEasing),
         ) {
           fingerRootPosition = value
         }
         draggedData = null
         isSnapBackAnimating = false
       }
-      haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+      hapticsManager.performInvalidMove(haptic, settings)
     }
   }
 
@@ -576,14 +612,22 @@ fun KlondikeGameScreen(
               draggedCardIds = draggedCardIds,
               draggedData = draggedData,
               currentHint = currentHint,
+              cardBackStyle = settings.cardBack,
               onDrawFromStock = {
                 if (onDrawFromStock()) {
-                  haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                  soundManager.playCardFlip(settings)
+                  hapticsManager.performMove(haptic, settings)
                 }
               },
               onWasteTap = {
-                if (onAutoPlayFromWaste()) {
-                  haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                if (settings.tapToPlace) {
+                  if (onAutoPlayFromWaste()) {
+                    soundManager.playCardMove(settings)
+                    hapticsManager.performMove(haptic, settings)
+                  } else {
+                    soundManager.playInvalidMove(settings)
+                    hapticsManager.performInvalidMove(haptic, settings)
+                  }
                 }
               },
               onStartDragWaste = { card, grabOffset, startRootPos ->
@@ -621,6 +665,7 @@ fun KlondikeGameScreen(
               draggedCardIds = draggedCardIds,
               draggedData = draggedData,
               currentHint = currentHint,
+              cardBackStyle = settings.cardBack,
               onCardTap = handleTableauCardTap,
               onStartDragTableau = { colIndex, cardIndex, cards, grabOffset, startRootPos ->
                 if (!isSnapBackAnimating) {
@@ -989,6 +1034,7 @@ private fun TopBoardRow(
   draggedCardIds: Set<String>,
   draggedData: DraggedCardData? = null,
   currentHint: HintInfo? = null,
+  cardBackStyle: com.tufisolitaire.wtf.data.settings.CardBackStyle = com.tufisolitaire.wtf.data.settings.CardBackStyle.PRIMARY,
   onDrawFromStock: () -> Unit,
   onWasteTap: () -> Unit,
   onStartDragWaste: (CardModel, Offset, Offset) -> Unit,
@@ -1030,7 +1076,7 @@ private fun TopBoardRow(
             }
           },
         ) {
-          FaceDownCard(width = cardWidth, height = cardHeight)
+          FaceDownCard(width = cardWidth, height = cardHeight, cardBackStyle = cardBackStyle)
         }
       } else if (gameState.waste.isNotEmpty()) {
         EmptySlotView(width = cardWidth, height = cardHeight)
@@ -1162,6 +1208,7 @@ private fun TableauRow(
   draggedCardIds: Set<String>,
   draggedData: DraggedCardData? = null,
   currentHint: HintInfo? = null,
+  cardBackStyle: com.tufisolitaire.wtf.data.settings.CardBackStyle = com.tufisolitaire.wtf.data.settings.CardBackStyle.PRIMARY,
   onCardTap: (Int, Int) -> Unit,
   onStartDragTableau: (Int, Int, List<CardModel>, Offset, Offset) -> Unit,
   onUpdateDragPosition: (Offset) -> Unit,
@@ -1276,6 +1323,7 @@ private fun TableauRow(
                 width = cardWidth,
                 height = cardHeight,
                 isHighlighted = isHighlighted,
+                cardBackStyle = cardBackStyle,
               )
             }
 
@@ -1300,6 +1348,9 @@ private fun executeDrop(
   onMoveTableauToTableau: (Int, Int, Int) -> Boolean,
   onMoveFoundationToTableau: (Suit, Int) -> Boolean,
   haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
+  soundManager: com.tufisolitaire.wtf.sound.SoundManager,
+  hapticsManager: com.tufisolitaire.wtf.haptics.HapticsManager,
+  settings: com.tufisolitaire.wtf.data.settings.AppSettings,
 ): Boolean {
   if (draggedData == null || dropTarget == null) return false
   var moveSuccessful = false
@@ -1333,9 +1384,11 @@ private fun executeDrop(
   }
 
   if (moveSuccessful) {
-    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+    soundManager.playCardMove(settings)
+    hapticsManager.performMove(haptic, settings)
   } else {
-    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    soundManager.playInvalidMove(settings)
+    hapticsManager.performInvalidMove(haptic, settings)
   }
   return moveSuccessful
 }

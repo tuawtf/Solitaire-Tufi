@@ -58,10 +58,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     _uiState.update { it.copy(selectedGameType = gameType) }
   }
 
-  fun toggleFavorite() {
-    _uiState.update { it.copy(isFavorite = !it.isFavorite) }
-  }
-
   fun onNewGameClicked() {
     val saved = _uiState.value.savedKlondikeGame
     if (saved != null) {

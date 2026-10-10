@@ -10,6 +10,7 @@ import com.tufisolitaire.wtf.game.klondike.DifficultyMode
 import com.tufisolitaire.wtf.game.klondike.DrawMode
 import com.tufisolitaire.wtf.ui.game.klondike.KlondikeViewModel
 import com.tufisolitaire.wtf.ui.home.HomeViewModel
+import com.tufisolitaire.wtf.ui.settings.SettingsViewModel
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -37,13 +38,18 @@ class ExampleRobolectricTest {
     val initialState = viewModel.uiState.value
 
     assertEquals(GameType.KLONDIKE, initialState.selectedGameType)
-    assertFalse(initialState.isFavorite)
 
     viewModel.selectGameType(GameType.SPIDER)
     assertEquals(GameType.SPIDER, viewModel.uiState.value.selectedGameType)
+  }
 
-    viewModel.toggleFavorite()
-    assertTrue(viewModel.uiState.value.isFavorite)
+  @Test
+  fun `settingsViewModel manages tap_to_place default false`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val viewModel = SettingsViewModel(app)
+    val settings = viewModel.settings.value
+
+    assertFalse("tapToPlace must default to false", settings.tapToPlace)
   }
 
   @Test

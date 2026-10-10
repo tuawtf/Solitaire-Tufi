@@ -1,0 +1,9 @@
+Solitaire is a modern, ad-free, tracker-free, and 100% offline Klondike Solitaire card game.
+
+Features:
+- Material 3 Design: Dynamic color support, light/dark themes, and modern UI.
+- Customizable Controls: Tap-to-place or traditional drag-and-drop.
+- Classic Klondike Rules: Draw 1 or Draw 3 modes.
+- Multiple Difficulties: Easy, Regular, and Hard deals.
+- Sound & Haptics: Synthesized card audio effects and customizable haptic feedback.
+- Private & Offline: Requires no internet permission and tracks zero personal data.

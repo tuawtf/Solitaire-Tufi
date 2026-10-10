@@ -82,4 +82,8 @@ class StatsRepository(private val dao: GameModeStatsDao) {
     dao.insertOrUpdate(updated)
     return isNewHighScore
   }
+
+  suspend fun resetAllStats() {
+    dao.deleteAll()
+  }
 }

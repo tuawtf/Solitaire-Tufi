@@ -60,10 +60,16 @@ private val LightColorScheme =
 
 @Composable
 fun SolitaireTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
+  themeMode: com.tufisolitaire.wtf.data.settings.ThemeMode = com.tufisolitaire.wtf.data.settings.ThemeMode.SYSTEM,
   dynamicColor: Boolean = true,
   content: @Composable () -> Unit,
 ) {
+  val darkTheme = when (themeMode) {
+    com.tufisolitaire.wtf.data.settings.ThemeMode.SYSTEM -> isSystemInDarkTheme()
+    com.tufisolitaire.wtf.data.settings.ThemeMode.LIGHT -> false
+    com.tufisolitaire.wtf.data.settings.ThemeMode.DARK -> true
+  }
+
   val colorScheme =
     when {
       dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {

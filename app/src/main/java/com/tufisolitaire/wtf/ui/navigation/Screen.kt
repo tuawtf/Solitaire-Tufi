@@ -10,4 +10,10 @@ sealed class Screen(val route: String) {
       resume: Boolean = false,
     ): String = "game/$gameType?diff=$difficulty&draw=$drawMode&resume=$resume"
   }
+  data object Settings : Screen("settings")
+  data object SettingsGameplay : Screen("settings/gameplay")
+  data object SettingsSound : Screen("settings/sound")
+  data object SettingsHaptics : Screen("settings/haptics")
+  data object SettingsAppearance : Screen("settings/appearance")
+  data object SettingsAbout : Screen("settings/about")
 }

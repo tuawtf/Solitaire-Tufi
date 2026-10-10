@@ -23,4 +23,7 @@ interface GameModeStatsDao {
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insertOrUpdate(stats: GameModeStatsEntity)
+
+  @Query("DELETE FROM game_mode_stats")
+  suspend fun deleteAll()
 }

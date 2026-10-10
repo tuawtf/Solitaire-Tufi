@@ -51,6 +51,57 @@ fun AppNavigation(
             ),
           )
         },
+        onOpenSettings = {
+          navController.navigate(Screen.Settings.route)
+        },
+      )
+    }
+
+    // --- SETTINGS NAV GRAPH ---
+    composable(Screen.Settings.route) {
+      val settingsViewModel: com.tufisolitaire.wtf.ui.settings.SettingsViewModel = viewModel()
+      com.tufisolitaire.wtf.ui.settings.SettingsHomeScreen(
+        viewModel = settingsViewModel,
+        onNavigateToSection = { route -> navController.navigate(route) },
+        onNavigateBack = { navController.popBackStack() },
+      )
+    }
+
+    composable(Screen.SettingsGameplay.route) {
+      val settingsViewModel: com.tufisolitaire.wtf.ui.settings.SettingsViewModel = viewModel()
+      com.tufisolitaire.wtf.ui.settings.GameplaySettingsScreen(
+        viewModel = settingsViewModel,
+        onNavigateBack = { navController.popBackStack() },
+      )
+    }
+
+    composable(Screen.SettingsSound.route) {
+      val settingsViewModel: com.tufisolitaire.wtf.ui.settings.SettingsViewModel = viewModel()
+      com.tufisolitaire.wtf.ui.settings.SoundSettingsScreen(
+        viewModel = settingsViewModel,
+        onNavigateBack = { navController.popBackStack() },
+      )
+    }
+
+    composable(Screen.SettingsHaptics.route) {
+      val settingsViewModel: com.tufisolitaire.wtf.ui.settings.SettingsViewModel = viewModel()
+      com.tufisolitaire.wtf.ui.settings.HapticsSettingsScreen(
+        viewModel = settingsViewModel,
+        onNavigateBack = { navController.popBackStack() },
+      )
+    }
+
+    composable(Screen.SettingsAppearance.route) {
+      val settingsViewModel: com.tufisolitaire.wtf.ui.settings.SettingsViewModel = viewModel()
+      com.tufisolitaire.wtf.ui.settings.AppearanceSettingsScreen(
+        viewModel = settingsViewModel,
+        onNavigateBack = { navController.popBackStack() },
+      )
+    }
+
+    composable(Screen.SettingsAbout.route) {
+      com.tufisolitaire.wtf.ui.settings.AboutSettingsScreen(
+        onNavigateBack = { navController.popBackStack() },
       )
     }
 

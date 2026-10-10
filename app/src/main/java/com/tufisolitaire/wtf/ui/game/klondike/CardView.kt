@@ -50,6 +50,7 @@ fun CardView(
   modifier: Modifier = Modifier,
   elevation: Dp = 2.dp,
   isHighlighted: Boolean = false,
+  cardBackStyle: com.tufisolitaire.wtf.data.settings.CardBackStyle = com.tufisolitaire.wtf.data.settings.CardBackStyle.PRIMARY,
 ) {
   if (card.isFaceUp) {
     FaceUpCard(
@@ -65,6 +66,7 @@ fun CardView(
       width = width,
       height = height,
       elevation = elevation,
+      cardBackStyle = cardBackStyle,
       modifier = modifier,
     )
   }
@@ -195,11 +197,26 @@ fun FaceDownCard(
   width: Dp,
   height: Dp,
   elevation: Dp = 2.dp,
+  cardBackStyle: com.tufisolitaire.wtf.data.settings.CardBackStyle = com.tufisolitaire.wtf.data.settings.CardBackStyle.PRIMARY,
   modifier: Modifier = Modifier,
 ) {
-  val primary = MaterialTheme.colorScheme.primary
-  val container = MaterialTheme.colorScheme.primaryContainer
-  val onPrimary = MaterialTheme.colorScheme.onPrimary
+  val (baseColor, containerColor, contentColor) = when (cardBackStyle) {
+    com.tufisolitaire.wtf.data.settings.CardBackStyle.PRIMARY -> Triple(
+      MaterialTheme.colorScheme.primary,
+      MaterialTheme.colorScheme.primaryContainer,
+      MaterialTheme.colorScheme.onPrimary,
+    )
+    com.tufisolitaire.wtf.data.settings.CardBackStyle.SECONDARY -> Triple(
+      MaterialTheme.colorScheme.secondary,
+      MaterialTheme.colorScheme.secondaryContainer,
+      MaterialTheme.colorScheme.onSecondary,
+    )
+    com.tufisolitaire.wtf.data.settings.CardBackStyle.TERTIARY -> Triple(
+      MaterialTheme.colorScheme.tertiary,
+      MaterialTheme.colorScheme.tertiaryContainer,
+      MaterialTheme.colorScheme.onTertiary,
+    )
+  }
 
   Card(
     modifier = modifier.size(width, height),
@@ -207,15 +224,15 @@ fun FaceDownCard(
     colors = CardDefaults.cardColors(
       containerColor = CardWarmWhite,
     ),
-    border = BorderStroke(1.dp, primary.copy(alpha = 0.5f)),
+    border = BorderStroke(1.dp, baseColor.copy(alpha = 0.5f)),
     elevation = CardDefaults.cardElevation(defaultElevation = elevation),
   ) {
     Box(
       modifier = Modifier
         .fillMaxSize()
         .padding(2.5.dp)
-        .background(color = primary, shape = MaterialTheme.shapes.extraSmall)
-        .border(width = 1.dp, color = onPrimary.copy(alpha = 0.6f), shape = MaterialTheme.shapes.extraSmall)
+        .background(color = baseColor, shape = MaterialTheme.shapes.extraSmall)
+        .border(width = 1.dp, color = contentColor.copy(alpha = 0.6f), shape = MaterialTheme.shapes.extraSmall)
         .padding(2.dp),
       contentAlignment = Alignment.Center,
     ) {
@@ -226,7 +243,7 @@ fun FaceDownCard(
 
         // Inner dashed framing
         drawRoundRect(
-          color = container.copy(alpha = 0.7f),
+          color = containerColor.copy(alpha = 0.7f),
           size = size,
           cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx()),
           style = stroke,
@@ -237,13 +254,13 @@ fun FaceDownCard(
         var x = 0f
         while (x <= w + step) {
           drawLine(
-            color = onPrimary.copy(alpha = 0.25f),
+            color = contentColor.copy(alpha = 0.25f),
             start = Offset(x, 0f),
             end = Offset(x - h * 0.7f, h),
             strokeWidth = 1f,
           )
           drawLine(
-            color = onPrimary.copy(alpha = 0.25f),
+            color = contentColor.copy(alpha = 0.25f),
             start = Offset(x, 0f),
             end = Offset(x + h * 0.7f, h),
             strokeWidth = 1f,
@@ -257,8 +274,8 @@ fun FaceDownCard(
         val diaR1 = w * 0.24f
         val diaR2 = w * 0.14f
 
-        drawCircle(color = container.copy(alpha = 0.85f), radius = diaR1, center = Offset(cx, cy), style = stroke)
-        drawCircle(color = onPrimary.copy(alpha = 0.5f), radius = diaR2, center = Offset(cx, cy))
+        drawCircle(color = containerColor.copy(alpha = 0.85f), radius = diaR1, center = Offset(cx, cy), style = stroke)
+        drawCircle(color = contentColor.copy(alpha = 0.5f), radius = diaR2, center = Offset(cx, cy))
       }
     }
   }
