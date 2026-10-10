@@ -9,15 +9,19 @@ plugins {
 }
 
 android {
-  namespace = "com.example"
+  namespace = "com.tufisolitaire.wtf"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.solitaire.kvprxq"
+    applicationId = "com.tufisolitaire.wtf"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull()
+      ?: (project.findProperty("APP_VERSION_CODE") as? String)?.toIntOrNull()
+      ?: 1
+    versionName = (project.findProperty("appVersionName") as? String)
+      ?: (project.findProperty("APP_VERSION_NAME") as? String)
+      ?: "1.0.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
