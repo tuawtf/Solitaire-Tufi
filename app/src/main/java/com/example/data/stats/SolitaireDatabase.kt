@@ -4,11 +4,18 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.data.savedgame.SavedGameDao
+import com.example.data.savedgame.SavedGameEntity
 
-@Database(entities = [GameModeStatsEntity::class], version = 1, exportSchema = false)
+@Database(
+  entities = [GameModeStatsEntity::class, SavedGameEntity::class],
+  version = 2,
+  exportSchema = false,
+)
 abstract class SolitaireDatabase : RoomDatabase() {
 
   abstract fun statsDao(): GameModeStatsDao
+  abstract fun savedGameDao(): SavedGameDao
 
   companion object {
     @Volatile

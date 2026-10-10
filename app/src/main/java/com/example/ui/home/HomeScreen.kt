@@ -16,12 +16,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Construction
 import androidx.compose.material.icons.outlined.EmojiEvents
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -31,8 +37,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,16 +53,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
+import com.example.data.savedgame.SavedGameEntity
 import com.example.game.GameStats
 import com.example.game.GameType
+import com.example.game.klondike.DifficultyMode
+import com.example.game.klondike.DrawMode
+import java.util.Locale
 
 @Composable
 fun HomeRoute(
   viewModel: HomeViewModel,
-  onStartGame: (GameType) -> Unit,
+  onStartNewGame: (GameType, DifficultyMode, DrawMode) -> Unit,
+  onResumeGame: (GameType) -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -59,7 +78,17 @@ fun HomeRoute(
     uiState = uiState,
     onSelectGameType = viewModel::selectGameType,
     onToggleFavorite = viewModel::toggleFavorite,
-    onStartGame = onStartGame,
+    onNewGameClicked = viewModel::onNewGameClicked,
+    onConfirmOverwrite = viewModel::confirmOverwriteAndShowDialog,
+    onDismissOverwrite = viewModel::dismissOverwriteDialog,
+    onDismissNewGameDialog = viewModel::dismissNewGameDialog,
+    onSetDialogDifficulty = viewModel::setDialogDifficulty,
+    onSetDialogDrawMode = viewModel::setDialogDrawMode,
+    onLaunchNewGame = { diff, draw ->
+      viewModel.dismissNewGameDialog()
+      onStartNewGame(uiState.selectedGameType, diff, draw)
+    },
+    onResumeGame = { onResumeGame(uiState.selectedGameType) },
     modifier = modifier,
   )
 }
@@ -70,7 +99,14 @@ fun HomeScreen(
   uiState: HomeUiState,
   onSelectGameType: (GameType) -> Unit,
   onToggleFavorite: () -> Unit,
-  onStartGame: (GameType) -> Unit,
+  onNewGameClicked: () -> Unit,
+  onConfirmOverwrite: () -> Unit,
+  onDismissOverwrite: () -> Unit,
+  onDismissNewGameDialog: () -> Unit,
+  onSetDialogDifficulty: (DifficultyMode) -> Unit,
+  onSetDialogDrawMode: (DrawMode) -> Unit,
+  onLaunchNewGame: (DifficultyMode, DrawMode) -> Unit,
+  onResumeGame: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val scrollState = rememberScrollState()
@@ -112,40 +148,125 @@ fun HomeScreen(
         .padding(paddingValues)
         .verticalScroll(scrollState),
     ) {
-      // Big "New Game" FilledTonalButton
-      Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 20.dp, vertical = 16.dp),
-      ) {
-        FilledTonalButton(
-          onClick = { onStartGame(uiState.selectedGameType) },
-          shape = MaterialTheme.shapes.large,
+      // --- DEVAM ET CARD (Only for Klondike if a saved game exists) ---
+      if (uiState.selectedGameType == GameType.KLONDIKE && uiState.savedKlondikeGame != null) {
+        val saved = uiState.savedKlondikeGame
+        val minutes = saved.elapsedSeconds / 60
+        val seconds = saved.elapsedSeconds % 60
+        val formattedTime = String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+
+        Column(
           modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 60.dp)
-            .testTag("new_game_button"),
+            .padding(horizontal = 20.dp)
+            .padding(top = 16.dp),
         ) {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
+          ElevatedCard(
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.elevatedCardColors(
+              containerColor = MaterialTheme.colorScheme.primaryContainer,
+            ),
+            modifier = Modifier
+              .fillMaxWidth()
+              .testTag("resume_game_card"),
           ) {
-            Icon(
-              imageVector = Icons.Filled.PlayArrow,
-              contentDescription = null,
-              modifier = Modifier.size(28.dp),
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-              text = stringResource(R.string.action_new_game),
-              style = MaterialTheme.typography.titleMedium,
-              fontWeight = FontWeight.Bold,
-            )
+            Column(
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            ) {
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                  Icon(
+                    imageVector = Icons.Outlined.History,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(22.dp),
+                  )
+                  Spacer(modifier = Modifier.width(8.dp))
+                  Text(
+                    text = "Devam Eden Oyun",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                  )
+                }
+                Text(
+                  text = "${saved.difficulty} · ${saved.drawMode.replace("_", " ")}",
+                  style = MaterialTheme.typography.labelMedium,
+                  color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                )
+              }
+
+              Spacer(modifier = Modifier.height(8.dp))
+
+              Text(
+                text = "Süre: $formattedTime • Hamle: ${saved.moveCount}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+              )
+
+              Spacer(modifier = Modifier.height(14.dp))
+
+              Button(
+                onClick = onResumeGame,
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .testTag("resume_game_button"),
+              ) {
+                Icon(
+                  imageVector = Icons.Outlined.PlayCircle,
+                  contentDescription = null,
+                  modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Devam Et", fontWeight = FontWeight.Bold)
+              }
+            }
           }
         }
       }
 
-      // Game Tabs (Klondike, Spider, FreeCell, Pyramid) with stats per tab
+      // --- BIG "NEW GAME" BUTTON (Only for Klondike) ---
+      if (uiState.selectedGameType == GameType.KLONDIKE) {
+        Column(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        ) {
+          FilledTonalButton(
+            onClick = onNewGameClicked,
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier
+              .fillMaxWidth()
+              .heightIn(min = 58.dp)
+              .testTag("new_game_button"),
+          ) {
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.Center,
+            ) {
+              Icon(
+                imageVector = Icons.Filled.PlayArrow,
+                contentDescription = null,
+                modifier = Modifier.size(26.dp),
+              )
+              Spacer(modifier = Modifier.width(10.dp))
+              Text(
+                text = stringResource(R.string.action_new_game),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+              )
+            }
+          }
+        }
+      }
+
+      // --- GAME TABS: Klondike, Spider, FreeCell, Pyramid ---
       val gameTypes = GameType.entries
       val selectedTabIndex = gameTypes.indexOf(uiState.selectedGameType).coerceAtLeast(0)
 
@@ -185,7 +306,7 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                  text = stats.formattedRatio,
+                  text = if (gameType == GameType.KLONDIKE) stats.formattedRatio else "Yakında",
                   maxLines = 1,
                   softWrap = false,
                   style = MaterialTheme.typography.labelSmall,
@@ -199,13 +320,227 @@ fun HomeScreen(
 
       Spacer(modifier = Modifier.height(16.dp))
 
-      // Selected Game Mode Detail & Statistics Card
-      SelectedGameDetails(
-        gameType = uiState.selectedGameType,
-        stats = uiState.currentStats,
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 20.dp, vertical = 8.dp),
+      // --- CONTENT PER TAB: Klondike Details vs Coming Soon Placeholder ---
+      if (uiState.selectedGameType == GameType.KLONDIKE) {
+        SelectedGameDetails(
+          gameType = uiState.selectedGameType,
+          stats = uiState.currentStats,
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        )
+      } else {
+        ComingSoonPlaceholder(
+          gameType = uiState.selectedGameType,
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        )
+      }
+    }
+  }
+
+  // --- OVERWRITE CONFIRMATION DIALOG ---
+  if (uiState.showConfirmOverwriteDialog) {
+    AlertDialog(
+      onDismissRequest = onDismissOverwrite,
+      title = {
+        Text("Yeni Oyun Başlatılsın mı?", fontWeight = FontWeight.Bold)
+      },
+      text = {
+        Text("Devam eden oyun silinecek, emin misiniz?")
+      },
+      confirmButton = {
+        Button(onClick = onConfirmOverwrite) {
+          Text("Yeni Oyun")
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = onDismissOverwrite) {
+          Text(stringResource(R.string.dialog_cancel))
+        }
+      },
+    )
+  }
+
+  // --- NEW GAME CONFIGURATION DIALOG ---
+  if (uiState.showNewGameDialog) {
+    NewGameSettingsDialog(
+      difficulty = uiState.dialogDifficulty,
+      drawMode = uiState.dialogDrawMode,
+      onSelectDifficulty = onSetDialogDifficulty,
+      onSelectDrawMode = onSetDialogDrawMode,
+      onConfirm = {
+        onLaunchNewGame(uiState.dialogDifficulty, uiState.dialogDrawMode)
+      },
+      onDismiss = onDismissNewGameDialog,
+    )
+  }
+}
+
+/**
+ * Material 3 AlertDialog for choosing Draw Mode and Difficulty before starting a new game.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NewGameSettingsDialog(
+  difficulty: DifficultyMode,
+  drawMode: DrawMode,
+  onSelectDifficulty: (DifficultyMode) -> Unit,
+  onSelectDrawMode: (DrawMode) -> Unit,
+  onConfirm: () -> Unit,
+  onDismiss: () -> Unit,
+) {
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = {
+      Text(
+        text = "Klondike",
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.Bold,
+      )
+    },
+    text = {
+      Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+      ) {
+        // --- Draw Mode Segmented Button ---
+        Column {
+          Text(
+            text = "Kart Çekme Modu",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 6.dp),
+          )
+          val drawModes = listOf(DrawMode.DRAW_ONE to "Draw 1", DrawMode.DRAW_THREE to "Draw 3")
+          SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            drawModes.forEachIndexed { index, (mode, label) ->
+              val isSelected = drawMode == mode
+              SegmentedButton(
+                selected = isSelected,
+                onClick = { onSelectDrawMode(mode) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = drawModes.size),
+                icon = { SegmentedButtonDefaults.Icon(active = isSelected) },
+                label = { Text(label, fontSize = 13.sp) },
+              )
+            }
+          }
+        }
+
+        // --- Difficulty Mode Segmented Button ---
+        Column {
+          Text(
+            text = "Zorluk Seviyesi",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 6.dp),
+          )
+          val difficulties = DifficultyMode.entries
+          SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            difficulties.forEachIndexed { index, mode ->
+              val isSelected = difficulty == mode
+              SegmentedButton(
+                selected = isSelected,
+                onClick = { onSelectDifficulty(mode) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = difficulties.size),
+                icon = { SegmentedButtonDefaults.Icon(active = isSelected) },
+                label = { Text(mode.displayName, fontSize = 12.sp) },
+              )
+            }
+          }
+        }
+
+        // Mode explanation
+        Surface(
+          shape = MaterialTheme.shapes.small,
+          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+          modifier = Modifier.fillMaxWidth(),
+        ) {
+          Text(
+            text = "${difficulty.description} (Çarpan: x${difficulty.multiplier})",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(10.dp),
+          )
+        }
+      }
+    },
+    confirmButton = {
+      Button(
+        onClick = onConfirm,
+        modifier = Modifier.testTag("dialog_confirm_new_game"),
+      ) {
+        Text("New Game", fontWeight = FontWeight.Bold)
+      }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss) {
+        Text("Back")
+      }
+    },
+  )
+}
+
+/**
+ * Clean Material 3 Coming Soon Card for unfinished game modes (Spider, FreeCell, Pyramid).
+ */
+@Composable
+private fun ComingSoonPlaceholder(
+  gameType: GameType,
+  modifier: Modifier = Modifier,
+) {
+  OutlinedCard(
+    shape = MaterialTheme.shapes.extraLarge,
+    colors = CardDefaults.outlinedCardColors(
+      containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+    ),
+    modifier = modifier.testTag("coming_soon_card"),
+  ) {
+    Column(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(24.dp),
+      horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+      Icon(
+        imageVector = Icons.Outlined.Construction,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.size(44.dp),
+      )
+
+      Spacer(modifier = Modifier.height(12.dp))
+
+      Text(
+        text = gameType.displayName,
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurface,
+      )
+
+      Text(
+        text = gameType.subtitle,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+
+      Spacer(modifier = Modifier.height(8.dp))
+
+      SuggestionChip(
+        onClick = { },
+        label = { Text("Yakında", fontWeight = FontWeight.SemiBold) },
+      )
+
+      Spacer(modifier = Modifier.height(12.dp))
+
+      Text(
+        text = "${gameType.description}\n\nBu mod yakında eklenecektir. Şu anda klasik Klondike modunu oynayabilirsiniz.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
       )
     }
   }
@@ -229,9 +564,7 @@ private fun SelectedGameDetails(
         .fillMaxWidth()
         .padding(20.dp),
     ) {
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
+      Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
           imageVector = Icons.Outlined.Info,
           contentDescription = null,
@@ -268,7 +601,6 @@ private fun SelectedGameDetails(
 
       Spacer(modifier = Modifier.height(16.dp))
 
-      // Stats row
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,

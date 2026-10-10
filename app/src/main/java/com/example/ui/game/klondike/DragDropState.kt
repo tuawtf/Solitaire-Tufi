@@ -61,4 +61,33 @@ class DragDropController {
 
     return null
   }
+
+  /**
+   * Evaluates if a given tableau column is a valid drop target for the currently dragged card(s).
+   */
+  fun isValidTableauTarget(draggedData: DraggedCardData?, targetColumnIndex: Int, targetColumnCards: List<CardModel>): Boolean {
+    if (draggedData == null) return false
+    val firstDraggedCard = draggedData.cards.firstOrNull() ?: return false
+
+    // Prevent dropping onto the same tableau column at the same position
+    if (draggedData.source is DragSource.Tableau && draggedData.source.columnIndex == targetColumnIndex) {
+      return false
+    }
+
+    val topTargetCard = targetColumnCards.lastOrNull()
+    return firstDraggedCard.canStackOnTableau(topTargetCard)
+  }
+
+  /**
+   * Evaluates if a given foundation pile is a valid drop target for the currently dragged card.
+   */
+  fun isValidFoundationTarget(draggedData: DraggedCardData?, suit: Suit, foundationCards: List<CardModel>): Boolean {
+    if (draggedData == null) return false
+    if (draggedData.cards.size != 1) return false
+    val card = draggedData.cards.first()
+    if (card.suit != suit) return false
+
+    val topCard = foundationCards.lastOrNull()
+    return card.canStackOnFoundation(topCard)
+  }
 }

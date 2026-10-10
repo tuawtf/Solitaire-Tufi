@@ -10,6 +10,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.game.GameType
+import com.example.game.klondike.DifficultyMode
+import com.example.game.klondike.DrawMode
 import com.example.ui.game.GamePlaceholderScreen
 import com.example.ui.game.klondike.KlondikeGameRoute
 import com.example.ui.game.klondike.KlondikeViewModel
@@ -31,8 +33,23 @@ fun AppNavigation(
     composable(Screen.Home.route) {
       HomeRoute(
         viewModel = homeViewModel,
-        onStartGame = { gameType ->
-          navController.navigate(Screen.Game.createRoute(gameType.name))
+        onStartNewGame = { gameType, difficulty, drawMode ->
+          navController.navigate(
+            Screen.Game.createRoute(
+              gameType = gameType.name,
+              difficulty = difficulty.name,
+              drawMode = drawMode.name,
+              resume = false,
+            ),
+          )
+        },
+        onResumeGame = { gameType ->
+          navController.navigate(
+            Screen.Game.createRoute(
+              gameType = gameType.name,
+              resume = true,
+            ),
+          )
         },
       )
     }
@@ -44,14 +61,43 @@ fun AppNavigation(
           type = NavType.StringType
           defaultValue = "KLONDIKE"
         },
+        navArgument("diff") {
+          type = NavType.StringType
+          defaultValue = "REGULAR"
+        },
+        navArgument("draw") {
+          type = NavType.StringType
+          defaultValue = "DRAW_ONE"
+        },
+        navArgument("resume") {
+          type = NavType.BoolType
+          defaultValue = false
+        },
       ),
     ) { backStackEntry ->
       val gameTypeKey = backStackEntry.arguments?.getString("gameType") ?: "KLONDIKE"
+      val diffKey = backStackEntry.arguments?.getString("diff") ?: "REGULAR"
+      val drawKey = backStackEntry.arguments?.getString("draw") ?: "DRAW_ONE"
+      val resumeFlag = backStackEntry.arguments?.getBoolean("resume") ?: false
 
       if (gameTypeKey.equals(GameType.KLONDIKE.name, ignoreCase = true)) {
+        val difficulty = try {
+          DifficultyMode.valueOf(diffKey)
+        } catch (_: Exception) {
+          DifficultyMode.REGULAR
+        }
+        val drawMode = try {
+          DrawMode.valueOf(drawKey)
+        } catch (_: Exception) {
+          DrawMode.DRAW_ONE
+        }
+
         val klondikeViewModel: KlondikeViewModel = viewModel()
         KlondikeGameRoute(
           viewModel = klondikeViewModel,
+          difficulty = difficulty,
+          drawMode = drawMode,
+          resume = resumeFlag,
           onNavigateBack = {
             navController.popBackStack()
           },

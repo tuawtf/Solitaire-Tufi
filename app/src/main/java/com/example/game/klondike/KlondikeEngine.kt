@@ -126,6 +126,15 @@ class KlondikeEngine(
     }
   }
 
+  fun getUndoHistory(): List<KlondikeGameState> = undoStack.toList()
+
+  fun restoreState(savedState: KlondikeGameState, savedUndoStack: List<KlondikeGameState>) {
+    undoStack.clear()
+    undoStack.addAll(savedUndoStack)
+    moveHistory.clear()
+    _state.value = savedState
+  }
+
   fun canUndo(): Boolean {
     return undoStack.isNotEmpty() && currentState.canUseUndo
   }

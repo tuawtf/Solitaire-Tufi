@@ -3,6 +3,9 @@ package com.example.ui.game.klondike
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.savedgame.GameStateSerializer
+import com.example.data.savedgame.SavedGameEntity
+import com.example.data.savedgame.SavedGameRepository
 import com.example.data.stats.GameModeStatsEntity
 import com.example.data.stats.SolitaireDatabase
 import com.example.data.stats.StatsRepository
@@ -25,9 +28,9 @@ import kotlinx.coroutines.launch
 
 class KlondikeViewModel(application: Application) : AndroidViewModel(application) {
 
-  private val statsRepository = StatsRepository(
-    SolitaireDatabase.getDatabase(application).statsDao(),
-  )
+  private val database = SolitaireDatabase.getDatabase(application)
+  private val statsRepository = StatsRepository(database.statsDao())
+  private val savedGameRepository = SavedGameRepository(database.savedGameDao())
 
   private val engine = KlondikeEngine(
     initialDifficulty = DifficultyMode.REGULAR,
@@ -48,6 +51,9 @@ class KlondikeViewModel(application: Application) : AndroidViewModel(application
   private val _showResultSheet = MutableStateFlow(false)
   val showResultSheet: StateFlow<Boolean> = _showResultSheet.asStateFlow()
 
+  private val _isCelebrating = MutableStateFlow(false)
+  val isCelebrating: StateFlow<Boolean> = _isCelebrating.asStateFlow()
+
   private val _isNewHighScore = MutableStateFlow(false)
   val isNewHighScore: StateFlow<Boolean> = _isNewHighScore.asStateFlow()
 
@@ -62,26 +68,76 @@ class KlondikeViewModel(application: Application) : AndroidViewModel(application
     )
 
   private var timerJob: Job? = null
-  private var hasRecordedGameStart = false
 
   init {
-    startTimer()
+    // Note: Do NOT record game play here. Games are only recorded as played when a New Game starts.
     updateCanUndo()
-    recordInitialGameStart()
   }
 
-  private fun recordInitialGameStart() {
-    if (!hasRecordedGameStart) {
-      hasRecordedGameStart = true
-      viewModelScope.launch {
-        statsRepository.recordGamePlayed("KLONDIKE", engine.currentState.difficulty, engine.currentState.drawMode)
+  fun initializeGame(difficulty: DifficultyMode, drawMode: DrawMode, resume: Boolean) {
+    viewModelScope.launch {
+      if (resume) {
+        val saved = savedGameRepository.getSavedGameDirect("KLONDIKE")
+        if (saved != null) {
+          try {
+            val restoredState = GameStateSerializer.deserializeState(saved.stateJson)
+            val restoredUndo = GameStateSerializer.deserializeUndoStack(saved.undoStackJson)
+            engine.restoreState(restoredState, restoredUndo)
+            updateCanUndo()
+            startTimer()
+            return@launch
+          } catch (_: Exception) {
+            // If failed to deserialize, start new game below
+          }
+        }
       }
+      // Start brand new game
+      startNewGame(difficulty, drawMode)
     }
   }
 
-  /**
-   * Starts timer counting immediately upon game creation and pauses upon win.
-   */
+  fun startNewGame(
+    difficulty: DifficultyMode = engine.currentState.difficulty,
+    drawMode: DrawMode = engine.currentState.drawMode,
+  ) {
+    _currentHint.value = null
+    _showResultSheet.value = false
+    _isNewHighScore.value = false
+    engine.startNewGame(difficulty = difficulty, drawMode = drawMode)
+    updateCanUndo()
+    startTimer()
+
+    // Increment played count ONLY when a new game starts
+    viewModelScope.launch {
+      savedGameRepository.deleteSavedGame("KLONDIKE")
+      statsRepository.recordGamePlayed("KLONDIKE", difficulty, drawMode)
+    }
+  }
+
+  fun restartGame() {
+    _currentHint.value = null
+    _showResultSheet.value = false
+    _isNewHighScore.value = false
+    engine.restartGame()
+    updateCanUndo()
+    startTimer()
+    viewModelScope.launch {
+      savedGameRepository.deleteSavedGame("KLONDIKE")
+      statsRepository.recordGamePlayed("KLONDIKE", engine.currentState.difficulty, engine.currentState.drawMode)
+    }
+  }
+
+  fun pauseTimerAndSave() {
+    pauseTimer()
+    saveCurrentGame()
+  }
+
+  fun resumeTimer() {
+    if (!engine.currentState.isWon) {
+      startTimer()
+    }
+  }
+
   private fun startTimer() {
     timerJob?.cancel()
     timerJob = viewModelScope.launch {
@@ -94,25 +150,58 @@ class KlondikeViewModel(application: Application) : AndroidViewModel(application
     }
   }
 
+  private fun pauseTimer() {
+    timerJob?.cancel()
+    timerJob = null
+  }
+
+  fun saveCurrentGame() {
+    val state = engine.currentState
+    if (state.moveCount > 0 && !state.isWon) {
+      viewModelScope.launch {
+        savedGameRepository.saveGame("KLONDIKE", state, engine.getUndoHistory())
+      }
+    }
+  }
+
+  fun giveUpGame() {
+    pauseTimer()
+    viewModelScope.launch {
+      savedGameRepository.deleteSavedGame("KLONDIKE")
+    }
+  }
+
   private fun updateCanUndo() {
     _canUndo.value = engine.canUndo()
   }
 
   private fun checkWinState() {
     val state = engine.currentState
-    if (state.isWon && !_showResultSheet.value) {
-      _showResultSheet.value = true
+    if (state.isWon) {
+      pauseTimer()
       viewModelScope.launch {
-        val newRecord = statsRepository.recordGameWon(
-          gameType = "KLONDIKE",
-          difficulty = state.difficulty,
-          drawMode = state.drawMode,
-          score = state.calculatedScore,
-          timeSeconds = state.elapsedSeconds,
-          moves = state.moveCount,
-        )
-        _isNewHighScore.value = newRecord
+        savedGameRepository.deleteSavedGame("KLONDIKE")
       }
+      if (!_showResultSheet.value && !_isCelebrating.value) {
+        _isCelebrating.value = true
+        viewModelScope.launch {
+          val newRecord = statsRepository.recordGameWon(
+            gameType = "KLONDIKE",
+            difficulty = state.difficulty,
+            drawMode = state.drawMode,
+            score = state.calculatedScore,
+            timeSeconds = state.elapsedSeconds,
+            moves = state.moveCount,
+          )
+          _isNewHighScore.value = newRecord
+          // Allow victory bouncing animation to play before presenting result bottom sheet
+          delay(2400L)
+          _isCelebrating.value = false
+          _showResultSheet.value = true
+        }
+      }
+    } else {
+      saveCurrentGame()
     }
   }
 
@@ -145,53 +234,6 @@ class KlondikeViewModel(application: Application) : AndroidViewModel(application
     }
   }
 
-  fun setDifficulty(difficulty: DifficultyMode) {
-    _currentHint.value = null
-    _showResultSheet.value = false
-    _isNewHighScore.value = false
-    engine.startNewGame(difficulty = difficulty, drawMode = difficulty.defaultDrawMode)
-    updateCanUndo()
-    startTimer()
-    viewModelScope.launch {
-      statsRepository.recordGamePlayed("KLONDIKE", difficulty, difficulty.defaultDrawMode)
-    }
-  }
-
-  fun setDrawMode(drawMode: DrawMode) {
-    _currentHint.value = null
-    _showResultSheet.value = false
-    _isNewHighScore.value = false
-    engine.startNewGame(difficulty = engine.currentState.difficulty, drawMode = drawMode)
-    updateCanUndo()
-    startTimer()
-    viewModelScope.launch {
-      statsRepository.recordGamePlayed("KLONDIKE", engine.currentState.difficulty, drawMode)
-    }
-  }
-
-  fun startNewGame() {
-    _currentHint.value = null
-    _showResultSheet.value = false
-    _isNewHighScore.value = false
-    val diff = engine.currentState.difficulty
-    val draw = engine.currentState.drawMode
-    engine.startNewGame(difficulty = diff, drawMode = draw)
-    updateCanUndo()
-    startTimer()
-    viewModelScope.launch {
-      statsRepository.recordGamePlayed("KLONDIKE", diff, draw)
-    }
-  }
-
-  fun restartGame() {
-    _currentHint.value = null
-    _showResultSheet.value = false
-    _isNewHighScore.value = false
-    engine.restartGame()
-    updateCanUndo()
-    startTimer()
-  }
-
   fun drawFromStock(): Boolean {
     clearHint()
     val success = engine.drawFromStock()
@@ -204,6 +246,7 @@ class KlondikeViewModel(application: Application) : AndroidViewModel(application
     clearHint()
     val success = engine.undo()
     updateCanUndo()
+    saveCurrentGame()
     return success
   }
 
@@ -265,6 +308,6 @@ class KlondikeViewModel(application: Application) : AndroidViewModel(application
 
   override fun onCleared() {
     super.onCleared()
-    timerJob?.cancel()
+    pauseTimer()
   }
 }

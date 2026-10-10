@@ -2,8 +2,15 @@ package com.example.ui.game.klondike
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -53,21 +60,31 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -92,13 +109,42 @@ import kotlin.math.roundToInt
 fun KlondikeGameRoute(
   viewModel: KlondikeViewModel,
   onNavigateBack: () -> Unit,
+  difficulty: DifficultyMode = DifficultyMode.REGULAR,
+  drawMode: DrawMode = DrawMode.DRAW_ONE,
+  resume: Boolean = false,
   modifier: Modifier = Modifier,
 ) {
+  LaunchedEffect(difficulty, drawMode, resume) {
+    viewModel.initializeGame(difficulty, drawMode, resume)
+  }
+
+  val lifecycleOwner = LocalLifecycleOwner.current
+  DisposableEffect(lifecycleOwner) {
+    val observer = LifecycleEventObserver { _, event ->
+      when (event) {
+        Lifecycle.Event.ON_RESUME -> {
+          viewModel.resumeTimer()
+        }
+        Lifecycle.Event.ON_PAUSE,
+        Lifecycle.Event.ON_STOP -> {
+          viewModel.pauseTimerAndSave()
+        }
+        else -> Unit
+      }
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose {
+      lifecycleOwner.lifecycle.removeObserver(observer)
+      viewModel.pauseTimerAndSave()
+    }
+  }
+
   val gameState by viewModel.gameState.collectAsStateWithLifecycle()
   val canUndo by viewModel.canUndo.collectAsStateWithLifecycle()
   val currentHint by viewModel.currentHint.collectAsStateWithLifecycle()
   val isAutoCompleting by viewModel.isAutoCompleting.collectAsStateWithLifecycle()
   val showResultSheet by viewModel.showResultSheet.collectAsStateWithLifecycle()
+  val isCelebrating by viewModel.isCelebrating.collectAsStateWithLifecycle()
   val isNewHighScore by viewModel.isNewHighScore.collectAsStateWithLifecycle()
   val modeStats by viewModel.currentModeStats.collectAsStateWithLifecycle()
 
@@ -108,14 +154,14 @@ fun KlondikeGameRoute(
     currentHint = currentHint,
     isAutoCompleting = isAutoCompleting,
     showResultSheet = showResultSheet,
+    isCelebrating = isCelebrating,
     isNewHighScore = isNewHighScore,
     modeStats = modeStats,
     onDrawFromStock = viewModel::drawFromStock,
     onUndo = viewModel::undo,
     onRestartGame = viewModel::restartGame,
-    onStartNewGame = viewModel::startNewGame,
-    onSetDifficulty = viewModel::setDifficulty,
-    onSetDrawMode = viewModel::setDrawMode,
+    onStartNewGame = { viewModel.startNewGame(difficulty, drawMode) },
+    onGiveUp = viewModel::giveUpGame,
     onRequestHint = viewModel::requestHint,
     onClearHint = viewModel::clearHint,
     onStartAutoComplete = viewModel::startAutoComplete,
@@ -127,7 +173,14 @@ fun KlondikeGameRoute(
     onMoveTableauToFoundation = viewModel::moveTableauToFoundation,
     onMoveTableauToTableau = viewModel::moveTableauToTableau,
     onMoveFoundationToTableau = viewModel::moveFoundationToTableau,
-    onNavigateBack = onNavigateBack,
+    onExitSaveAndNavigateBack = {
+      viewModel.pauseTimerAndSave()
+      onNavigateBack()
+    },
+    onNavigateBack = {
+      viewModel.pauseTimerAndSave()
+      onNavigateBack()
+    },
     modifier = modifier,
   )
 }
@@ -140,14 +193,14 @@ fun KlondikeGameScreen(
   currentHint: HintInfo?,
   isAutoCompleting: Boolean,
   showResultSheet: Boolean,
+  isCelebrating: Boolean = false,
   isNewHighScore: Boolean,
   modeStats: GameModeStatsEntity?,
   onDrawFromStock: () -> Boolean,
   onUndo: () -> Boolean,
   onRestartGame: () -> Unit,
   onStartNewGame: () -> Unit,
-  onSetDifficulty: (DifficultyMode) -> Unit,
-  onSetDrawMode: (DrawMode) -> Unit,
+  onGiveUp: () -> Unit,
   onRequestHint: () -> Unit,
   onClearHint: () -> Unit,
   onStartAutoComplete: () -> Unit,
@@ -159,14 +212,24 @@ fun KlondikeGameScreen(
   onMoveTableauToFoundation: (Int) -> Boolean,
   onMoveTableauToTableau: (Int, Int, Int) -> Boolean,
   onMoveFoundationToTableau: (Suit, Int) -> Boolean,
+  onExitSaveAndNavigateBack: () -> Unit,
   onNavigateBack: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  BackHandler(onBack = onNavigateBack)
+  var showGiveUpDialog by remember { mutableStateOf(false) }
+  var showExitConfirmDialog by remember { mutableStateOf(false) }
+
+  val handleBackRequest = {
+    if (gameState.moveCount > 0 && !gameState.isWon) {
+      showExitConfirmDialog = true
+    } else {
+      onNavigateBack()
+    }
+  }
+
+  BackHandler(onBack = handleBackRequest)
 
   val haptic = LocalHapticFeedback.current
-  var showGiveUpDialog by remember { mutableStateOf(false) }
-  var showDifficultyDialog by remember { mutableStateOf(false) }
 
   // Drag and Drop Controller and State
   val controller = remember { DragDropController() }
@@ -190,7 +253,7 @@ fun KlondikeGameScreen(
         },
         navigationIcon = {
           IconButton(
-            onClick = onNavigateBack,
+            onClick = handleBackRequest,
             modifier = Modifier.testTag("back_button"),
           ) {
             Icon(
@@ -200,13 +263,28 @@ fun KlondikeGameScreen(
           }
         },
         actions = {
-          Text(
-            text = "$formattedTime    Moves: ${gameState.moveCount}",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
+          Row(
             modifier = Modifier.padding(end = 16.dp),
-          )
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Text(
+              text = formattedTime,
+              style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+              ),
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+              text = "Moves: ${gameState.moveCount}",
+              style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+              ),
+              fontWeight = FontWeight.SemiBold,
+              color = MaterialTheme.colorScheme.onSurface,
+            )
+          }
         },
         colors = TopAppBarDefaults.topAppBarColors(
           containerColor = MaterialTheme.colorScheme.surface,
@@ -317,48 +395,26 @@ fun KlondikeGameScreen(
         }
       }
 
-      // --- ASSIST CHIPS: Difficulty & Draw Mode ---
+      // --- MODE & DRAW INFO LABEL (Non-clickable) ---
       Row(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(horizontal = 10.dp, vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+          .padding(horizontal = 12.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        AssistChip(
-          onClick = { showDifficultyDialog = true },
-          label = {
-            Text(
-              text = "${gameState.difficulty.displayName} (x${gameState.difficulty.multiplier})",
-              fontWeight = FontWeight.SemiBold,
-              fontSize = 12.sp,
-            )
-          },
-          modifier = Modifier.testTag("difficulty_chip"),
-        )
-
-        AssistChip(
-          onClick = {
-            val nextDraw = if (gameState.drawMode == DrawMode.DRAW_ONE) DrawMode.DRAW_THREE else DrawMode.DRAW_ONE
-            onSetDrawMode(nextDraw)
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-          },
-          label = {
-            Text(
-              text = if (gameState.drawMode == DrawMode.DRAW_ONE) "Draw 1" else "Draw 3",
-              fontWeight = FontWeight.Medium,
-              fontSize = 12.sp,
-            )
-          },
-          leadingIcon = {
-            Icon(
-              imageVector = Icons.Outlined.Refresh,
-              contentDescription = null,
-              modifier = Modifier.size(14.dp),
-            )
-          },
-          modifier = Modifier.testTag("draw_mode_chip"),
-        )
+        Surface(
+          shape = MaterialTheme.shapes.extraSmall,
+          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        ) {
+          Text(
+            text = "${gameState.difficulty.displayName} · ${if (gameState.drawMode == DrawMode.DRAW_ONE) "Draw 1" else "Draw 3"}",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+          )
+        }
       }
 
       // --- HINT BANNER ---
@@ -419,18 +475,30 @@ fun KlondikeGameScreen(
 
       Spacer(modifier = Modifier.height(4.dp))
 
-      // --- BOARD CONTAINER: Takes remaining area with weight(1f), no vertical scroll ---
+      // --- BOARD CONTAINER: Takes remaining area with weight(1f), subtle vertical gradient ---
+      val boardGradient = Brush.verticalGradient(
+        colors = listOf(
+          MaterialTheme.colorScheme.surface,
+          MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+          MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.15f),
+        ),
+      )
+
       BoxWithConstraints(
         modifier = Modifier
           .fillMaxWidth()
           .weight(1f)
+          .background(boardGradient)
           .padding(horizontal = 4.dp)
           .onGloballyPositioned { coords ->
             boardOriginRoot = coords.positionInRoot()
           },
       ) {
+        val configuration = LocalConfiguration.current
+        val isExpandedLayout = configuration.screenWidthDp >= 600
         val spacing = 4.dp
-        val cardWidth = ((maxWidth - (spacing * 6)) / 7).coerceAtMost(72.dp)
+        val maxAllowedCardWidth = if (isExpandedLayout) 84.dp else 72.dp
+        val cardWidth = ((maxWidth - (spacing * 6)) / 7).coerceAtMost(maxAllowedCardWidth)
         val cardHeight = cardWidth * 1.4f
         val tableauHeight = (maxHeight - cardHeight - 12.dp).coerceAtLeast(100.dp)
 
@@ -448,6 +516,8 @@ fun KlondikeGameScreen(
               spacing = spacing,
               controller = controller,
               draggedCardIds = draggedCardIds,
+              draggedData = draggedData,
+              currentHint = currentHint,
               onDrawFromStock = {
                 if (onDrawFromStock()) {
                   haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -502,6 +572,8 @@ fun KlondikeGameScreen(
               spacing = spacing,
               controller = controller,
               draggedCardIds = draggedCardIds,
+              draggedData = draggedData,
+              currentHint = currentHint,
               onCardTap = { colIndex ->
                 if (onAutoPlayFromTableau(colIndex)) {
                   haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -541,7 +613,7 @@ fun KlondikeGameScreen(
             )
           }
 
-          // --- VISUAL OVERLAY: NO pointerInput, only renders floating cards ---
+          // --- VISUAL OVERLAY: NO pointerInput, only renders floating cards with scale 1.05 and deep shadow ---
           val activeDrag = draggedData
           if (activeDrag != null) {
             val dragCards = activeDrag.cards
@@ -556,7 +628,8 @@ fun KlondikeGameScreen(
                   val y = (fingerRootPosition.y - activeDrag.grabOffset.y - boardOriginRoot.y).roundToInt()
                   IntOffset(x, y)
                 }
-                .shadow(12.dp, MaterialTheme.shapes.extraSmall),
+                .scale(1.05f)
+                .shadow(16.dp, MaterialTheme.shapes.extraSmall),
             ) {
               Column {
                 dragCards.forEachIndexed { idx, card ->
@@ -567,13 +640,21 @@ fun KlondikeGameScreen(
                       card = card,
                       width = cardW,
                       height = cardH,
-                      elevation = 6.dp,
+                      elevation = 8.dp,
                       isHighlighted = true,
                     )
                   }
                 }
               }
             }
+          }
+
+          // --- VICTORY CELEBRATION ANIMATION OVERLAY ---
+          if (isCelebrating) {
+            VictoryCelebrationOverlay(
+              cardWidth = cardWidth,
+              cardHeight = cardHeight,
+            )
           }
         }
       }
@@ -631,61 +712,29 @@ fun KlondikeGameScreen(
     }
   }
 
-  // --- DIFFICULTY SELECTION DIALOG ---
-  if (showDifficultyDialog) {
+  // --- EXIT CONFIRMATION DIALOG ---
+  if (showExitConfirmDialog) {
     AlertDialog(
-      onDismissRequest = { showDifficultyDialog = false },
+      onDismissRequest = { showExitConfirmDialog = false },
       title = {
-        Text("Zorluk Modu Seçin", fontWeight = FontWeight.Bold)
+        Text("Oyundan Çıkış", fontWeight = FontWeight.Bold)
       },
       text = {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          DifficultyMode.entries.forEach { mode ->
-            val isSelected = mode == gameState.difficulty
-            Surface(
-              shape = MaterialTheme.shapes.medium,
-              color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-              onClick = {
-                showDifficultyDialog = false
-                onSetDifficulty(mode)
-              },
-              modifier = Modifier.fillMaxWidth(),
-            ) {
-              Column(modifier = Modifier.padding(12.dp)) {
-                Row(
-                  modifier = Modifier.fillMaxWidth(),
-                  horizontalArrangement = Arrangement.SpaceBetween,
-                  verticalAlignment = Alignment.CenterVertically,
-                ) {
-                  Text(
-                    text = "${mode.displayName} (x${mode.multiplier})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                  )
-                  if (isSelected) {
-                    Icon(
-                      imageVector = Icons.Filled.AutoAwesome,
-                      contentDescription = null,
-                      tint = MaterialTheme.colorScheme.primary,
-                      modifier = Modifier.size(18.dp),
-                    )
-                  }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                  text = mode.description,
-                  style = MaterialTheme.typography.bodySmall,
-                  color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              }
-            }
-          }
-        }
+        Text("Oyundan çıkmak istiyor musunuz? Oyun kaydedilecek ve Ana Menü'den Devam Et ile sürdürebilirsiniz.")
       },
       confirmButton = {
-        TextButton(onClick = { showDifficultyDialog = false }) {
-          Text(stringResource(R.string.dialog_cancel))
+        Button(
+          onClick = {
+            showExitConfirmDialog = false
+            onExitSaveAndNavigateBack()
+          },
+        ) {
+          Text("Çık")
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = { showExitConfirmDialog = false }) {
+          Text("Vazgeç")
         }
       },
     )
@@ -705,6 +754,7 @@ fun KlondikeGameScreen(
         Button(
           onClick = {
             showGiveUpDialog = false
+            onGiveUp()
             onRestartGame()
           },
         ) {
@@ -716,6 +766,7 @@ fun KlondikeGameScreen(
           TextButton(
             onClick = {
               showGiveUpDialog = false
+              onGiveUp()
               onNavigateBack()
             },
           ) {
@@ -904,6 +955,8 @@ private fun TopBoardRow(
   spacing: Dp,
   controller: DragDropController,
   draggedCardIds: Set<String>,
+  draggedData: DraggedCardData? = null,
+  currentHint: HintInfo? = null,
   onDrawFromStock: () -> Unit,
   onWasteTap: () -> Unit,
   onStartDragWaste: (CardModel, Offset) -> Unit,
@@ -953,7 +1006,7 @@ private fun TopBoardRow(
       }
     }
 
-    // Cell 1: Waste
+    // Cell 1: Waste - Supports fanning out up to 3 visible cards in Draw 3 mode
     val topWaste = gameState.topWasteCard
     Box(
       modifier = Modifier
@@ -961,8 +1014,25 @@ private fun TopBoardRow(
         .testTag("waste_pile"),
     ) {
       if (topWaste != null) {
+        val wasteCards = gameState.waste
+        val isDrawThree = gameState.drawMode == DrawMode.DRAW_THREE
+        val visibleWasteCount = if (isDrawThree) minOf(3, wasteCards.size) else 1
+        val visibleWasteCards = wasteCards.takeLast(visibleWasteCount)
+
+        // Draw underneath cards as subtle horizontal fanned stack
+        if (visibleWasteCards.size > 1) {
+          val fanOffset = (cardWidth * 0.16f)
+          visibleWasteCards.dropLast(1).forEachIndexed { index, card ->
+            val xOffset = fanOffset * (index.toFloat() - (visibleWasteCards.size - 1).toFloat() * 0.5f)
+            Box(modifier = Modifier.offset(x = xOffset)) {
+              CardView(card = card, width = cardWidth, height = cardHeight)
+            }
+          }
+        }
+
         var wasteCardRootPos by remember { mutableStateOf(Offset.Zero) }
         val isCardHidden = draggedCardIds.contains(topWaste.id)
+        val isWasteHinted = currentHint?.card?.id == topWaste.id
 
         Box(
           modifier = Modifier
@@ -984,7 +1054,12 @@ private fun TopBoardRow(
               )
             },
         ) {
-          CardView(card = topWaste, width = cardWidth, height = cardHeight)
+          CardView(
+            card = topWaste,
+            width = cardWidth,
+            height = cardHeight,
+            isHighlighted = isWasteHinted,
+          )
         }
       } else {
         EmptySlotView(width = cardWidth, height = cardHeight)
@@ -999,6 +1074,7 @@ private fun TopBoardRow(
     foundationSuits.forEach { suit ->
       val pile = gameState.foundations[suit] ?: emptyList()
       val topCard = pile.lastOrNull()
+      val isValidTarget = controller.isValidFoundationTarget(draggedData, suit, pile)
 
       Box(
         modifier = Modifier
@@ -1009,9 +1085,19 @@ private fun TopBoardRow(
           },
       ) {
         if (topCard != null) {
-          CardView(card = topCard, width = cardWidth, height = cardHeight)
+          CardView(
+            card = topCard,
+            width = cardWidth,
+            height = cardHeight,
+            isHighlighted = isValidTarget,
+          )
         } else {
-          EmptySlotView(width = cardWidth, height = cardHeight, suit = suit)
+          EmptySlotView(
+            width = cardWidth,
+            height = cardHeight,
+            suit = suit,
+            isTargetHighlight = isValidTarget,
+          )
         }
       }
     }
@@ -1030,6 +1116,8 @@ private fun TableauRow(
   spacing: Dp,
   controller: DragDropController,
   draggedCardIds: Set<String>,
+  draggedData: DraggedCardData? = null,
+  currentHint: HintInfo? = null,
   onCardTap: (Int) -> Unit,
   onStartDragTableau: (Int, Int, List<CardModel>, Offset) -> Unit,
   onUpdateDragPosition: (Offset) -> Unit,
@@ -1043,6 +1131,8 @@ private fun TableauRow(
     horizontalArrangement = Arrangement.spacedBy(spacing),
   ) {
     tableau.forEachIndexed { colIndex, columnCards ->
+      val isValidTarget = controller.isValidTableauTarget(draggedData, colIndex, columnCards)
+
       Box(
         modifier = Modifier
           .width(cardWidth)
@@ -1057,6 +1147,7 @@ private fun TableauRow(
             width = cardWidth,
             height = cardHeight,
             text = "K",
+            isTargetHighlight = isValidTarget,
           )
         } else {
           // Calculate spacing with automatic compression for tall stacks
@@ -1082,6 +1173,9 @@ private fun TableauRow(
             val cardY = currentYOffset
             var cardRootPos by remember { mutableStateOf(Offset.Zero) }
             val isHidden = draggedCardIds.contains(card.id)
+            val isHinted = currentHint?.card?.id == card.id
+            val isLastCardInCol = cardIndex == columnCards.lastIndex
+            val isHighlighted = isHinted || (isValidTarget && isLastCardInCol)
 
             Box(
               modifier = Modifier
@@ -1112,7 +1206,12 @@ private fun TableauRow(
                   },
                 ),
             ) {
-              CardView(card = card, width = cardWidth, height = cardHeight)
+              CardView(
+                card = card,
+                width = cardWidth,
+                height = cardHeight,
+                isHighlighted = isHighlighted,
+              )
             }
 
             val step = if (card.isFaceUp) faceUpStep else faceDownStep
@@ -1213,6 +1312,89 @@ private suspend fun PointerInputScope.detectTapAndDrag(
           change.consume()
           onDrag(delta, change.position)
         }
+      }
+    }
+  }
+}
+
+/**
+ * Delightful victory celebration animation: cards bounce enthusiastically from the foundations
+ * across the screen before the result summary sheet is revealed.
+ */
+@Composable
+private fun VictoryCelebrationOverlay(
+  cardWidth: Dp,
+  cardHeight: Dp,
+) {
+  val infiniteTransition = rememberInfiniteTransition(label = "victory_bounce")
+  val bounceOffset1 by infiniteTransition.animateFloat(
+    initialValue = 0f,
+    targetValue = -35f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+      repeatMode = RepeatMode.Reverse,
+    ),
+    label = "bounce1",
+  )
+  val bounceOffset2 by infiniteTransition.animateFloat(
+    initialValue = 0f,
+    targetValue = -45f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(durationMillis = 480, easing = FastOutSlowInEasing),
+      repeatMode = RepeatMode.Reverse,
+    ),
+    label = "bounce2",
+  )
+  val bounceOffset3 by infiniteTransition.animateFloat(
+    initialValue = 0f,
+    targetValue = -30f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(durationMillis = 440, easing = FastOutSlowInEasing),
+      repeatMode = RepeatMode.Reverse,
+    ),
+    label = "bounce3",
+  )
+  val bounceOffset4 by infiniteTransition.animateFloat(
+    initialValue = 0f,
+    targetValue = -50f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(durationMillis = 520, easing = FastOutSlowInEasing),
+      repeatMode = RepeatMode.Reverse,
+    ),
+    label = "bounce4",
+  )
+
+  Box(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(Color.Black.copy(alpha = 0.25f)),
+    contentAlignment = Alignment.Center,
+  ) {
+    Row(
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Box(modifier = Modifier.offset(y = bounceOffset1.dp)) {
+        FaceDownCard(width = cardWidth, height = cardHeight, elevation = 12.dp)
+      }
+      Box(modifier = Modifier.offset(y = bounceOffset2.dp)) {
+        CardView(
+          card = CardModel(com.example.game.CardRank.KING, Suit.HEARTS, isFaceUp = true),
+          width = cardWidth,
+          height = cardHeight,
+          elevation = 14.dp,
+        )
+      }
+      Box(modifier = Modifier.offset(y = bounceOffset3.dp)) {
+        CardView(
+          card = CardModel(com.example.game.CardRank.ACE, Suit.SPADES, isFaceUp = true),
+          width = cardWidth,
+          height = cardHeight,
+          elevation = 14.dp,
+        )
+      }
+      Box(modifier = Modifier.offset(y = bounceOffset4.dp)) {
+        FaceDownCard(width = cardWidth, height = cardHeight, elevation = 12.dp)
       }
     }
   }
