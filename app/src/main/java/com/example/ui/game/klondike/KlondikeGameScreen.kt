@@ -2,8 +2,10 @@ package com.example.ui.game.klondike
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -65,12 +67,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalViewConfiguration
+import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
@@ -230,12 +236,133 @@ fun KlondikeGameScreen(
   BackHandler(onBack = handleBackRequest)
 
   val haptic = LocalHapticFeedback.current
+  val coroutineScope = rememberCoroutineScope()
 
   // Drag and Drop Controller and State
   val controller = remember { DragDropController() }
   var draggedData by remember { mutableStateOf<DraggedCardData?>(null) }
   var fingerRootPosition by remember { mutableStateOf(Offset.Zero) }
+  var startDragRootPosition by remember { mutableStateOf(Offset.Zero) }
+  var isSnapBackAnimating by remember { mutableStateOf(false) }
   var boardOriginRoot by remember { mutableStateOf(Offset.Zero) }
+
+  val handleTableauCardTap: (Int, Int) -> Unit = { colIndex, cardIndex ->
+    val col = gameState.tableau.getOrNull(colIndex)
+    if (col != null && cardIndex in col.indices) {
+      val card = col[cardIndex]
+      if (card.isFaceUp) {
+        val isLastCardInCol = cardIndex == col.lastIndex
+        var moved = false
+
+        // 1. If it's the last card in the column, try moving to foundation first
+        if (isLastCardInCol) {
+          val foundationPile = gameState.foundations[card.suit] ?: emptyList()
+          if (card.canStackOnFoundation(foundationPile.lastOrNull())) {
+            moved = onMoveTableauToFoundation(colIndex)
+          }
+        }
+
+        // 2. If not moved to foundation, try moving to another tableau column
+        if (!moved) {
+          // Try non-empty target columns first
+          for (targetCol in gameState.tableau.indices) {
+            if (targetCol == colIndex) continue
+            val targetCards = gameState.tableau[targetCol]
+            if (targetCards.isNotEmpty()) {
+              val targetTop = targetCards.last()
+              if (card.canStackOnTableau(targetTop)) {
+                moved = onMoveTableauToTableau(colIndex, cardIndex, targetCol)
+                if (moved) break
+              }
+            }
+          }
+
+          // If still not moved and card is a KING, only move to empty column if NOT already at index 0
+          // (moving a King that is already the root card of a column to an empty column is a meaningless move)
+          if (!moved && card.rank == com.example.game.CardRank.KING && cardIndex > 0) {
+            for (targetCol in gameState.tableau.indices) {
+              if (targetCol == colIndex) continue
+              val targetCards = gameState.tableau[targetCol]
+              if (targetCards.isEmpty()) {
+                moved = onMoveTableauToTableau(colIndex, cardIndex, targetCol)
+                if (moved) break
+              }
+            }
+          }
+        }
+
+        if (moved) {
+          haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        } else {
+          haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+      }
+    }
+  }
+
+  val handleEndDrag: () -> Unit = {
+    if (!isSnapBackAnimating) {
+      val currentDrag = draggedData
+      if (currentDrag != null) {
+        val dropTarget = controller.findDropTarget(fingerRootPosition)
+
+        val isSameTableauColumn = currentDrag.source is DragSource.Tableau &&
+          dropTarget is DropTarget.Tableau &&
+          currentDrag.source.columnIndex == dropTarget.columnIndex
+
+        val moveSuccessful = if (isSameTableauColumn) {
+          false
+        } else {
+          executeDrop(
+            draggedData = currentDrag,
+            dropTarget = dropTarget,
+            onMoveWasteToFoundation = onMoveWasteToFoundation,
+            onMoveWasteToTableau = onMoveWasteToTableau,
+            onMoveTableauToFoundation = onMoveTableauToFoundation,
+            onMoveTableauToTableau = onMoveTableauToTableau,
+            onMoveFoundationToTableau = onMoveFoundationToTableau,
+            haptic = haptic,
+          )
+        }
+
+        if (moveSuccessful) {
+          draggedData = null
+        } else {
+          // Smooth snap back animation to original position
+          coroutineScope.launch {
+            isSnapBackAnimating = true
+            val anim = Animatable(fingerRootPosition, Offset.VectorConverter)
+            anim.animateTo(
+              targetValue = startDragRootPosition,
+              animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+            ) {
+              fingerRootPosition = value
+            }
+            draggedData = null
+            isSnapBackAnimating = false
+          }
+        }
+      }
+    }
+  }
+
+  val handleCancelDrag: () -> Unit = {
+    if (!isSnapBackAnimating && draggedData != null) {
+      coroutineScope.launch {
+        isSnapBackAnimating = true
+        val anim = Animatable(fingerRootPosition, Offset.VectorConverter)
+        anim.animateTo(
+          targetValue = startDragRootPosition,
+          animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+        ) {
+          fingerRootPosition = value
+        }
+        draggedData = null
+        isSnapBackAnimating = false
+      }
+      haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    }
+  }
 
   val minutes = gameState.elapsedSeconds / 60
   val seconds = gameState.elapsedSeconds % 60
@@ -528,37 +655,26 @@ fun KlondikeGameScreen(
                   haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 }
               },
-              onStartDragWaste = { card, grabOffset ->
-                draggedData = DraggedCardData(
-                  cards = listOf(card),
-                  source = DragSource.Waste,
-                  grabOffset = grabOffset,
-                  cardWidth = cardWidth,
-                  cardHeight = cardHeight,
-                )
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+              onStartDragWaste = { card, grabOffset, startRootPos ->
+                if (!isSnapBackAnimating) {
+                  startDragRootPosition = startRootPos
+                  draggedData = DraggedCardData(
+                    cards = listOf(card),
+                    source = DragSource.Waste,
+                    grabOffset = grabOffset,
+                    cardWidth = cardWidth,
+                    cardHeight = cardHeight,
+                  )
+                  haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
               },
               onUpdateDragPosition = { rootPos ->
-                fingerRootPosition = rootPos
+                if (!isSnapBackAnimating) {
+                  fingerRootPosition = rootPos
+                }
               },
-              onEndDrag = {
-                executeDrop(
-                  draggedData = draggedData,
-                  fingerRoot = fingerRootPosition,
-                  controller = controller,
-                  onMoveWasteToFoundation = onMoveWasteToFoundation,
-                  onMoveWasteToTableau = onMoveWasteToTableau,
-                  onMoveTableauToFoundation = onMoveTableauToFoundation,
-                  onMoveTableauToTableau = onMoveTableauToTableau,
-                  onMoveFoundationToTableau = onMoveFoundationToTableau,
-                  haptic = haptic,
-                )
-                draggedData = null
-              },
-              onCancelDrag = {
-                draggedData = null
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-              },
+              onEndDrag = handleEndDrag,
+              onCancelDrag = handleCancelDrag,
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -574,42 +690,27 @@ fun KlondikeGameScreen(
               draggedCardIds = draggedCardIds,
               draggedData = draggedData,
               currentHint = currentHint,
-              onCardTap = { colIndex ->
-                if (onAutoPlayFromTableau(colIndex)) {
+              onCardTap = handleTableauCardTap,
+              onStartDragTableau = { colIndex, cardIndex, cards, grabOffset, startRootPos ->
+                if (!isSnapBackAnimating) {
+                  startDragRootPosition = startRootPos
+                  draggedData = DraggedCardData(
+                    cards = cards,
+                    source = DragSource.Tableau(colIndex, cardIndex),
+                    grabOffset = grabOffset,
+                    cardWidth = cardWidth,
+                    cardHeight = cardHeight,
+                  )
                   haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 }
               },
-              onStartDragTableau = { colIndex, cardIndex, cards, grabOffset ->
-                draggedData = DraggedCardData(
-                  cards = cards,
-                  source = DragSource.Tableau(colIndex, cardIndex),
-                  grabOffset = grabOffset,
-                  cardWidth = cardWidth,
-                  cardHeight = cardHeight,
-                )
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-              },
               onUpdateDragPosition = { rootPos ->
-                fingerRootPosition = rootPos
+                if (!isSnapBackAnimating) {
+                  fingerRootPosition = rootPos
+                }
               },
-              onEndDrag = {
-                executeDrop(
-                  draggedData = draggedData,
-                  fingerRoot = fingerRootPosition,
-                  controller = controller,
-                  onMoveWasteToFoundation = onMoveWasteToFoundation,
-                  onMoveWasteToTableau = onMoveWasteToTableau,
-                  onMoveTableauToFoundation = onMoveTableauToFoundation,
-                  onMoveTableauToTableau = onMoveTableauToTableau,
-                  onMoveFoundationToTableau = onMoveFoundationToTableau,
-                  haptic = haptic,
-                )
-                draggedData = null
-              },
-              onCancelDrag = {
-                draggedData = null
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-              },
+              onEndDrag = handleEndDrag,
+              onCancelDrag = handleCancelDrag,
             )
           }
 
@@ -628,8 +729,8 @@ fun KlondikeGameScreen(
                   val y = (fingerRootPosition.y - activeDrag.grabOffset.y - boardOriginRoot.y).roundToInt()
                   IntOffset(x, y)
                 }
-                .scale(1.05f)
-                .shadow(16.dp, MaterialTheme.shapes.extraSmall),
+                .scale(if (isSnapBackAnimating) 1.0f else 1.05f)
+                .shadow(if (isSnapBackAnimating) 6.dp else 16.dp, MaterialTheme.shapes.extraSmall),
             ) {
               Column {
                 dragCards.forEachIndexed { idx, card ->
@@ -959,11 +1060,20 @@ private fun TopBoardRow(
   currentHint: HintInfo? = null,
   onDrawFromStock: () -> Unit,
   onWasteTap: () -> Unit,
-  onStartDragWaste: (CardModel, Offset) -> Unit,
+  onStartDragWaste: (CardModel, Offset, Offset) -> Unit,
   onUpdateDragPosition: (Offset) -> Unit,
   onEndDrag: () -> Unit,
   onCancelDrag: () -> Unit,
 ) {
+  val viewConfiguration = LocalViewConfiguration.current
+  val currentOnDrawFromStock by rememberUpdatedState(onDrawFromStock)
+  val currentOnWasteTap by rememberUpdatedState(onWasteTap)
+  val currentOnStartDragWaste by rememberUpdatedState(onStartDragWaste)
+  val currentOnUpdateDragPosition by rememberUpdatedState(onUpdateDragPosition)
+  val currentOnEndDrag by rememberUpdatedState(onEndDrag)
+  val currentOnCancelDrag by rememberUpdatedState(onCancelDrag)
+  val currentTopWaste by rememberUpdatedState(gameState.topWasteCard)
+
   Row(
     modifier = Modifier.fillMaxWidth(),
     horizontalArrangement = Arrangement.spacedBy(spacing),
@@ -974,8 +1084,8 @@ private fun TopBoardRow(
       modifier = Modifier
         .size(cardWidth, cardHeight)
         .testTag("stock_pile")
-        .pointerInput(gameState.stock.size) {
-          detectTapGestures(onTap = { onDrawFromStock() })
+        .pointerInput(gameState.stock.size, gameState.waste.size) {
+          detectTapGestures(onTap = { currentOnDrawFromStock() })
         },
     ) {
       if (gameState.stock.isNotEmpty()) {
@@ -1039,18 +1149,21 @@ private fun TopBoardRow(
             .fillMaxSize()
             .alpha(if (isCardHidden) 0f else 1f)
             .onGloballyPositioned { wasteCardRootPos = it.positionInRoot() }
-            .pointerInput(topWaste.id) {
+            .pointerInput(topWaste.id, gameState.waste.size) {
               detectTapAndDrag(
-                onTap = onWasteTap,
+                touchSlop = viewConfiguration.touchSlop,
+                onTap = { currentOnWasteTap() },
                 onDragStart = { localOffset ->
-                  onStartDragWaste(topWaste, localOffset)
-                  onUpdateDragPosition(wasteCardRootPos + localOffset)
+                  val cardToDrag = currentTopWaste ?: topWaste
+                  val startRootPos = wasteCardRootPos + localOffset
+                  currentOnStartDragWaste(cardToDrag, localOffset, startRootPos)
+                  currentOnUpdateDragPosition(startRootPos)
                 },
-                onDrag = { currentOffsetFromStart, currentLocalPos ->
-                  onUpdateDragPosition(wasteCardRootPos + currentLocalPos)
+                onDrag = { _, currentLocalPos ->
+                  currentOnUpdateDragPosition(wasteCardRootPos + currentLocalPos)
                 },
-                onDragEnd = onEndDrag,
-                onDragCancel = onCancelDrag,
+                onDragEnd = { currentOnEndDrag() },
+                onDragCancel = { currentOnCancelDrag() },
               )
             },
         ) {
@@ -1118,12 +1231,20 @@ private fun TableauRow(
   draggedCardIds: Set<String>,
   draggedData: DraggedCardData? = null,
   currentHint: HintInfo? = null,
-  onCardTap: (Int) -> Unit,
-  onStartDragTableau: (Int, Int, List<CardModel>, Offset) -> Unit,
+  onCardTap: (Int, Int) -> Unit,
+  onStartDragTableau: (Int, Int, List<CardModel>, Offset, Offset) -> Unit,
   onUpdateDragPosition: (Offset) -> Unit,
   onEndDrag: () -> Unit,
   onCancelDrag: () -> Unit,
 ) {
+  val viewConfiguration = LocalViewConfiguration.current
+  val currentTableau by rememberUpdatedState(tableau)
+  val currentOnCardTap by rememberUpdatedState(onCardTap)
+  val currentOnStartDragTableau by rememberUpdatedState(onStartDragTableau)
+  val currentOnUpdateDragPosition by rememberUpdatedState(onUpdateDragPosition)
+  val currentOnEndDrag by rememberUpdatedState(onEndDrag)
+  val currentOnCancelDrag by rememberUpdatedState(onCancelDrag)
+
   Row(
     modifier = Modifier
       .fillMaxWidth()
@@ -1177,6 +1298,10 @@ private fun TableauRow(
             val isLastCardInCol = cardIndex == columnCards.lastIndex
             val isHighlighted = isHinted || (isValidTarget && isLastCardInCol)
 
+            val currentCardIndex by rememberUpdatedState(cardIndex)
+            val currentColIndex by rememberUpdatedState(colIndex)
+            val currentCard by rememberUpdatedState(card)
+
             Box(
               modifier = Modifier
                 .offset(y = cardY)
@@ -1186,19 +1311,28 @@ private fun TableauRow(
                 }
                 .then(
                   if (card.isFaceUp) {
-                    Modifier.pointerInput(card.id) {
+                    Modifier.pointerInput(card.id, cardIndex, columnCards.size) {
                       detectTapAndDrag(
-                        onTap = { onCardTap(colIndex) },
+                        touchSlop = viewConfiguration.touchSlop,
+                        onTap = {
+                          currentOnCardTap(currentColIndex, currentCardIndex)
+                        },
                         onDragStart = { localOffset ->
-                          val movingCards = columnCards.subList(cardIndex, columnCards.size)
-                          onStartDragTableau(colIndex, cardIndex, movingCards, localOffset)
-                          onUpdateDragPosition(cardRootPos + localOffset)
+                          val currentColCards = currentTableau.getOrNull(currentColIndex) ?: emptyList()
+                          val movingCards = if (currentCardIndex in currentColCards.indices) {
+                            currentColCards.drop(currentCardIndex)
+                          } else {
+                            listOf(currentCard)
+                          }
+                          val startRootPos = cardRootPos + localOffset
+                          currentOnStartDragTableau(currentColIndex, currentCardIndex, movingCards, localOffset, startRootPos)
+                          currentOnUpdateDragPosition(startRootPos)
                         },
                         onDrag = { _, currentLocalPos ->
-                          onUpdateDragPosition(cardRootPos + currentLocalPos)
+                          currentOnUpdateDragPosition(cardRootPos + currentLocalPos)
                         },
-                        onDragEnd = onEndDrag,
-                        onDragCancel = onCancelDrag,
+                        onDragEnd = { currentOnEndDrag() },
+                        onDragCancel = { currentOnCancelDrag() },
                       )
                     }
                   } else {
@@ -1228,17 +1362,15 @@ private fun TableauRow(
  */
 private fun executeDrop(
   draggedData: DraggedCardData?,
-  fingerRoot: Offset,
-  controller: DragDropController,
+  dropTarget: DropTarget?,
   onMoveWasteToFoundation: () -> Boolean,
   onMoveWasteToTableau: (Int) -> Boolean,
   onMoveTableauToFoundation: (Int) -> Boolean,
   onMoveTableauToTableau: (Int, Int, Int) -> Boolean,
   onMoveFoundationToTableau: (Suit, Int) -> Boolean,
   haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
-) {
-  if (draggedData == null) return
-  val dropTarget = controller.findDropTarget(fingerRoot)
+): Boolean {
+  if (draggedData == null || dropTarget == null) return false
   var moveSuccessful = false
 
   when (val src = draggedData.source) {
@@ -1246,7 +1378,6 @@ private fun executeDrop(
       when (dropTarget) {
         is DropTarget.Foundation -> moveSuccessful = onMoveWasteToFoundation()
         is DropTarget.Tableau -> moveSuccessful = onMoveWasteToTableau(dropTarget.columnIndex)
-        null -> {}
       }
     }
     is DragSource.Tableau -> {
@@ -1257,9 +1388,10 @@ private fun executeDrop(
           }
         }
         is DropTarget.Tableau -> {
-          moveSuccessful = onMoveTableauToTableau(src.columnIndex, src.cardIndex, dropTarget.columnIndex)
+          if (src.columnIndex != dropTarget.columnIndex) {
+            moveSuccessful = onMoveTableauToTableau(src.columnIndex, src.cardIndex, dropTarget.columnIndex)
+          }
         }
-        null -> {}
       }
     }
     is DragSource.Foundation -> {
@@ -1274,18 +1406,21 @@ private fun executeDrop(
   } else {
     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
   }
+  return moveSuccessful
 }
 
 /**
- * Custom single gesture detector: handles instant tap without delay, or drag when movement exceeds slop.
+ * Custom single gesture detector: handles instant tap without delay, or drag when movement exceeds touch slop.
  */
 private suspend fun PointerInputScope.detectTapAndDrag(
+  touchSlop: Float,
   onTap: () -> Unit,
   onDragStart: (Offset) -> Unit,
   onDrag: (Offset, Offset) -> Unit,
   onDragEnd: () -> Unit,
   onDragCancel: () -> Unit,
 ) {
+  val slopThreshold = maxOf(touchSlop, 12.dp.toPx())
   awaitEachGesture {
     val down = awaitFirstDown(requireUnconsumed = false)
     val startPos = down.position
@@ -1304,7 +1439,7 @@ private suspend fun PointerInputScope.detectTapAndDrag(
         break
       } else {
         val delta = change.position - startPos
-        if (!isDragging && delta.getDistance() > 8f) {
+        if (!isDragging && delta.getDistance() > slopThreshold) {
           isDragging = true
           onDragStart(startPos)
         }
