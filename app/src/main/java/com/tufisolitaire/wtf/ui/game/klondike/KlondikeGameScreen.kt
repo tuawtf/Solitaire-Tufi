@@ -60,7 +60,18 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.tooling.preview.Preview
+import com.tufisolitaire.wtf.ui.theme.SolitaireTheme
+import com.tufisolitaire.wtf.ui.util.rememberAdaptiveLayoutInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -427,100 +438,17 @@ fun KlondikeGameScreen(
         .fillMaxSize()
         .padding(paddingValues),
     ) {
-      // --- ACTION BUTTONS: Undo, Hint, Auto-Complete, Give Up (Equal weights) ---
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-      ) {
-        val undoLabel = if (gameState.undosRemaining != null) {
-          "${stringResource(R.string.action_undo)} (${gameState.undosRemaining})"
-        } else {
-          stringResource(R.string.action_undo)
-        }
-
-        FilledTonalButton(
-          onClick = {
-            if (onUndo()) {
-              haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            }
-          },
-          enabled = canUndo,
-          modifier = Modifier
-            .weight(1f)
-            .testTag("undo_button"),
-        ) {
-          Icon(
-            imageVector = Icons.AutoMirrored.Filled.Undo,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp),
-          )
-          Spacer(modifier = Modifier.width(4.dp))
-          Text(undoLabel, fontSize = 11.sp, maxLines = 1)
-        }
-
-        if (gameState.difficulty.hasHints) {
-          FilledTonalButton(
-            onClick = {
-              onRequestHint()
-              haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            },
-            modifier = Modifier
-              .weight(1f)
-              .testTag("hint_button"),
-          ) {
-            Icon(
-              imageVector = Icons.Filled.Lightbulb,
-              contentDescription = null,
-              modifier = Modifier.size(16.dp),
-              tint = MaterialTheme.colorScheme.tertiary,
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(stringResource(R.string.action_hint), fontSize = 11.sp, maxLines = 1)
-          }
-        }
-
-        if (gameState.canAutoComplete) {
-          FilledTonalButton(
-            onClick = {
-              onStartAutoComplete()
-              haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            },
-            enabled = !isAutoCompleting,
-            modifier = Modifier
-              .weight(1f)
-              .testTag("auto_complete_button"),
-          ) {
-            Icon(
-              imageVector = Icons.Filled.AutoAwesome,
-              contentDescription = null,
-              modifier = Modifier.size(16.dp),
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-              text = if (isAutoCompleting) "..." else stringResource(R.string.action_auto_complete),
-              fontSize = 11.sp,
-              maxLines = 1,
-            )
-          }
-        }
-
-        FilledTonalButton(
-          onClick = { showGiveUpDialog = true },
-          modifier = Modifier
-            .weight(1f)
-            .testTag("give_up_button"),
-        ) {
-          Icon(
-            imageVector = Icons.Outlined.Flag,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp),
-          )
-          Spacer(modifier = Modifier.width(4.dp))
-          Text(stringResource(R.string.action_give_up), fontSize = 11.sp, maxLines = 1)
-        }
-      }
+      // --- ACTION BUTTONS: Undo, Hint, Auto-Complete, Give Up (Equal weights & responsive mode) ---
+      GameActionButtonsRow(
+        gameState = gameState,
+        canUndo = canUndo,
+        isAutoCompleting = isAutoCompleting,
+        onUndo = { onUndo() },
+        onRequestHint = onRequestHint,
+        onStartAutoComplete = onStartAutoComplete,
+        onGiveUp = { showGiveUpDialog = true },
+        haptic = haptic,
+      )
 
       // --- MODE & DRAW INFO LABEL (Non-clickable) ---
       Row(
@@ -621,20 +549,23 @@ fun KlondikeGameScreen(
             boardOriginRoot = coords.positionInRoot()
           },
       ) {
-        val configuration = LocalConfiguration.current
-        val isExpandedLayout = configuration.screenWidthDp >= 600
         val spacing = 4.dp
-        val maxAllowedCardWidth = if (isExpandedLayout) 84.dp else 72.dp
-        val cardWidth = ((maxWidth - (spacing * 6)) / 7).coerceAtMost(maxAllowedCardWidth)
+        val widthBasedCardWidth = (maxWidth - (spacing * 8)) / 7
+        val heightBasedCardWidth = (maxHeight - 24.dp) / (1.4f * 3.6f)
+        val cardWidth = minOf(widthBasedCardWidth, heightBasedCardWidth).coerceIn(36.dp, 96.dp)
         val cardHeight = cardWidth * 1.4f
         val tableauHeight = (maxHeight - cardHeight - 12.dp).coerceAtLeast(100.dp)
+        val boardWidth = (cardWidth * 7) + (spacing * 6)
 
         val draggedCardIds = remember(draggedData) {
           draggedData?.cards?.map { it.id }?.toSet() ?: emptySet()
         }
 
-        Box(modifier = Modifier.fillMaxSize()) {
-          Column(modifier = Modifier.fillMaxSize()) {
+        Box(
+          modifier = Modifier.fillMaxSize(),
+          contentAlignment = Alignment.TopCenter,
+        ) {
+          Column(modifier = Modifier.width(boardWidth)) {
             // --- TOP ROW: 7 equal cells aligned with 7 tableau columns ---
             TopBoardRow(
               gameState = gameState,
@@ -1534,3 +1465,246 @@ private fun VictoryCelebrationOverlay(
     }
   }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GameActionButtonsRow(
+  gameState: KlondikeGameState,
+  canUndo: Boolean,
+  isAutoCompleting: Boolean,
+  onUndo: () -> Boolean,
+  onRequestHint: () -> Unit,
+  onStartAutoComplete: () -> Unit,
+  onGiveUp: () -> Unit,
+  haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
+  modifier: Modifier = Modifier,
+) {
+  val configuration = LocalConfiguration.current
+  val density = LocalDensity.current
+  val fontScale = density.fontScale
+  val screenWidthDp = configuration.screenWidthDp
+
+  val hasHint = gameState.difficulty.hasHints
+  val canAutoComplete = gameState.canAutoComplete
+
+  var forceIconOnly by remember(screenWidthDp, fontScale, hasHint, canAutoComplete) {
+    mutableStateOf(false)
+  }
+
+  val undoLabel = if (gameState.undosRemaining != null) {
+    "${stringResource(R.string.action_undo)} (${gameState.undosRemaining})"
+  } else {
+    stringResource(R.string.action_undo)
+  }
+  val undoFullText = stringResource(R.string.action_undo)
+
+  val hintText = stringResource(R.string.action_hint)
+
+  val autoCompleteShort = stringResource(R.string.action_auto_complete_short)
+  val autoCompleteFull = stringResource(R.string.action_auto_complete)
+
+  val giveUpText = stringResource(R.string.action_give_up)
+
+  Box(
+    modifier = modifier.fillMaxWidth(),
+    contentAlignment = Alignment.Center,
+  ) {
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .widthIn(max = 560.dp)
+        .padding(horizontal = 8.dp, vertical = 4.dp),
+      horizontalArrangement = Arrangement.spacedBy(6.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      // 1. Undo Button
+      ActionButtonItem(
+        onClick = {
+          if (onUndo()) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+          }
+        },
+        enabled = canUndo,
+        icon = Icons.AutoMirrored.Filled.Undo,
+        label = undoLabel,
+        fullLabel = undoFullText,
+        testTag = "undo_button",
+        isIconOnly = forceIconOnly,
+        onOverflow = { forceIconOnly = true },
+        modifier = Modifier.weight(1f),
+      )
+
+      // 2. Hint Button
+      if (hasHint) {
+        ActionButtonItem(
+          onClick = {
+            onRequestHint()
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+          },
+          enabled = true,
+          icon = Icons.Filled.Lightbulb,
+          iconTint = MaterialTheme.colorScheme.tertiary,
+          label = hintText,
+          fullLabel = hintText,
+          testTag = "hint_button",
+          isIconOnly = forceIconOnly,
+          onOverflow = { forceIconOnly = true },
+          modifier = Modifier.weight(1f),
+        )
+      }
+
+      // 3. Auto Complete Button
+      if (canAutoComplete) {
+        ActionButtonItem(
+          onClick = {
+            onStartAutoComplete()
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+          },
+          enabled = !isAutoCompleting,
+          icon = Icons.Filled.AutoAwesome,
+          label = if (isAutoCompleting) "..." else autoCompleteShort,
+          fullLabel = autoCompleteFull,
+          testTag = "auto_complete_button",
+          isIconOnly = forceIconOnly,
+          onOverflow = { forceIconOnly = true },
+          modifier = Modifier.weight(1f),
+        )
+      }
+
+      // 4. Give Up Button
+      ActionButtonItem(
+        onClick = onGiveUp,
+        enabled = true,
+        icon = Icons.Outlined.Flag,
+        label = giveUpText,
+        fullLabel = giveUpText,
+        testTag = "give_up_button",
+        isIconOnly = forceIconOnly,
+        onOverflow = { forceIconOnly = true },
+        modifier = Modifier.weight(1f),
+      )
+    }
+  }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ActionButtonItem(
+  onClick: () -> Unit,
+  enabled: Boolean,
+  icon: androidx.compose.ui.graphics.vector.ImageVector,
+  label: String,
+  fullLabel: String,
+  testTag: String,
+  isIconOnly: Boolean,
+  onOverflow: () -> Unit,
+  modifier: Modifier = Modifier,
+  iconTint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
+) {
+  TooltipBox(
+    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+    tooltip = {
+      PlainTooltip {
+        Text(fullLabel)
+      }
+    },
+    state = rememberTooltipState(),
+  ) {
+    if (isIconOnly) {
+      FilledTonalIconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier
+          .heightIn(min = 48.dp)
+          .testTag(testTag),
+      ) {
+        Icon(
+          imageVector = icon,
+          contentDescription = fullLabel,
+          tint = if (iconTint != androidx.compose.ui.graphics.Color.Unspecified) iconTint else androidx.compose.material3.LocalContentColor.current,
+          modifier = Modifier.size(20.dp),
+        )
+      }
+    } else {
+      FilledTonalButton(
+        onClick = onClick,
+        enabled = enabled,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+        modifier = modifier
+          .heightIn(min = 48.dp)
+          .testTag(testTag),
+      ) {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.Center,
+        ) {
+          Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (iconTint != androidx.compose.ui.graphics.Color.Unspecified) iconTint else androidx.compose.material3.LocalContentColor.current,
+            modifier = Modifier.size(16.dp),
+          )
+          Spacer(modifier = Modifier.width(4.dp))
+          Text(
+            text = label,
+            fontSize = 11.sp,
+            maxLines = 1,
+            softWrap = false,
+            onTextLayout = { textLayoutResult ->
+              if (textLayoutResult.didOverflowWidth) {
+                onOverflow()
+              }
+            },
+          )
+        }
+      }
+    }
+  }
+}
+
+// -------------------------------------------------------------
+// Previews: Phone, Phone Landscape, Foldable, Tablet (1.0x & 2.0x fontScale)
+// -------------------------------------------------------------
+
+@Preview(name = "Game Phone - Font 1.0x", device = "spec:width=411dp,height=891dp", fontScale = 1.0f, showBackground = true)
+@Preview(name = "Game Phone - Font 2.0x", device = "spec:width=411dp,height=891dp", fontScale = 2.0f, showBackground = true)
+@Preview(name = "Game Landscape - Font 1.0x", device = "spec:width=891dp,height=411dp", fontScale = 1.0f, showBackground = true)
+@Preview(name = "Game Landscape - Font 2.0x", device = "spec:width=891dp,height=411dp", fontScale = 2.0f, showBackground = true)
+@Preview(name = "Game Foldable - Font 1.0x", device = "spec:width=673dp,height=841dp", fontScale = 1.0f, showBackground = true)
+@Preview(name = "Game Foldable - Font 2.0x", device = "spec:width=673dp,height=841dp", fontScale = 2.0f, showBackground = true)
+@Preview(name = "Game Tablet - Font 1.0x", device = "spec:width=1280dp,height=800dp", fontScale = 1.0f, showBackground = true)
+@Preview(name = "Game Tablet - Font 2.0x", device = "spec:width=1280dp,height=800dp", fontScale = 2.0f, showBackground = true)
+@Composable
+private fun KlondikeGameScreenPreview() {
+  SolitaireTheme {
+    KlondikeGameScreen(
+      gameState = KlondikeGameState(),
+      canUndo = false,
+      currentHint = null,
+      isAutoCompleting = false,
+      showResultSheet = false,
+      isCelebrating = false,
+      isNewHighScore = false,
+      modeStats = null,
+      onDrawFromStock = { true },
+      onUndo = { true },
+      onRestartGame = {},
+      onStartNewGame = {},
+      onGiveUp = {},
+      onRequestHint = {},
+      onClearHint = {},
+      onStartAutoComplete = {},
+      onDismissResultSheet = {},
+      onAutoPlayFromTableau = { _ -> true },
+      onAutoPlayFromWaste = { true },
+      onMoveWasteToTableau = { _ -> true },
+      onMoveWasteToFoundation = { true },
+      onMoveTableauToFoundation = { _ -> true },
+      onMoveTableauToTableau = { _, _, _ -> true },
+      onMoveFoundationToTableau = { _, _ -> true },
+      onExitSaveAndNavigateBack = {},
+      onNavigateBack = {},
+    )
+  }
+}
+

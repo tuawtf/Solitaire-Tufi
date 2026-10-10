@@ -9,6 +9,7 @@
     <string name="action_give_up">Pes Et</string>
     <string name="action_hint">İpucu</string>
     <string name="action_auto_complete">Otomatik Tamamla</string>
+    <string name="action_auto_complete_short">Tamamla</string>
     <string name="stats_win_ratio">Kazanma Oranı</string>
     <string name="stats_played">Oynanan</string>
     <string name="stats_won">Kazanılan</string>

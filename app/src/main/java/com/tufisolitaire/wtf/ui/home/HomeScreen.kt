@@ -13,6 +13,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
@@ -20,10 +24,14 @@ import androidx.compose.material.icons.outlined.Construction
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.QueryStats
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -54,6 +62,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -63,6 +72,8 @@ import com.tufisolitaire.wtf.game.GameStats
 import com.tufisolitaire.wtf.game.GameType
 import com.tufisolitaire.wtf.game.klondike.DifficultyMode
 import com.tufisolitaire.wtf.game.klondike.DrawMode
+import com.tufisolitaire.wtf.ui.theme.SolitaireTheme
+import com.tufisolitaire.wtf.ui.util.rememberAdaptiveLayoutInfo
 import java.util.Locale
 
 @Composable
@@ -111,6 +122,8 @@ fun HomeScreen(
 ) {
   val scrollState = rememberScrollState()
 
+  val adaptive = rememberAdaptiveLayoutInfo()
+
   Scaffold(
     topBar = {
       CenterAlignedTopAppBar(
@@ -142,52 +155,65 @@ fun HomeScreen(
     },
     modifier = modifier.fillMaxSize(),
   ) { paddingValues ->
-    Column(
+    Box(
       modifier = Modifier
         .fillMaxSize()
-        .padding(paddingValues)
-        .verticalScroll(scrollState),
+        .padding(paddingValues),
+      contentAlignment = Alignment.TopCenter,
     ) {
-      // --- DEVAM ET CARD (Only for Klondike if a saved game exists) ---
-      if (uiState.selectedGameType == GameType.KLONDIKE && uiState.savedKlondikeGame != null) {
-        val saved = uiState.savedKlondikeGame
-        val minutes = saved.elapsedSeconds / 60
-        val seconds = saved.elapsedSeconds % 60
-        val formattedTime = String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+      Column(
+        modifier = Modifier
+          .fillMaxSize()
+          .widthIn(max = adaptive.maxContentWidth)
+          .verticalScroll(scrollState),
+      ) {
+        // --- DEVAM ET CARD (Only for Klondike if a saved game exists) ---
+        if (uiState.selectedGameType == GameType.KLONDIKE && uiState.savedKlondikeGame != null) {
+          val saved = uiState.savedKlondikeGame
+          val minutes = saved.elapsedSeconds / 60
+          val seconds = saved.elapsedSeconds % 60
+          val formattedTime = String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
 
-        Column(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .padding(top = 16.dp),
-        ) {
-          ElevatedCard(
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.elevatedCardColors(
-              containerColor = MaterialTheme.colorScheme.primaryContainer,
-            ),
+          // Format clean labels for chips: "Draw 1", "Draw 3" and capitalized difficulty "Relaxed", "Regular", "Hard"
+          val diffLabel = saved.difficulty.lowercase().replaceFirstChar { it.uppercase() }
+          val drawLabel = if (saved.drawMode.contains("THREE", ignoreCase = true) || saved.drawMode.contains("3")) {
+            "Draw 3"
+          } else {
+            "Draw 1"
+          }
+
+          Column(
             modifier = Modifier
               .fillMaxWidth()
-              .testTag("resume_game_card"),
+              .padding(horizontal = 20.dp)
+              .padding(top = 16.dp),
           ) {
-            Column(
+            ElevatedCard(
+              shape = MaterialTheme.shapes.large,
+              colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+              ),
               modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .testTag("resume_game_card"),
             ) {
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+              Column(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .padding(16.dp),
               ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // Top row: Icon + "Devam Eden Oyun" title (always unobstructed)
+                Row(
+                  verticalAlignment = Alignment.CenterVertically,
+                  modifier = Modifier.fillMaxWidth(),
+                ) {
                   Icon(
                     imageVector = Icons.Outlined.History,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(24.dp),
                   )
-                  Spacer(modifier = Modifier.width(8.dp))
+                  Spacer(modifier = Modifier.width(10.dp))
                   Text(
                     text = "Devam Eden Oyun",
                     style = MaterialTheme.typography.titleMedium,
@@ -195,48 +221,105 @@ fun HomeScreen(
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                   )
                 }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // FlowRow for read-only informational chips that wrap cleanly on narrow screens / large font
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                  modifier = Modifier.fillMaxWidth(),
+                  horizontalArrangement = Arrangement.spacedBy(8.dp),
+                  verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                  AssistChip(
+                    onClick = {},
+                    enabled = true,
+                    colors = AssistChipDefaults.assistChipColors(
+                      containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                      labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                      leadingIconContentColor = MaterialTheme.colorScheme.primary,
+                    ),
+                    border = null,
+                    leadingIcon = {
+                      Icon(
+                        imageVector = Icons.Outlined.Speed,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                      )
+                    },
+                    label = {
+                      Text(
+                        text = diffLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                      )
+                    },
+                  )
+
+                  AssistChip(
+                    onClick = {},
+                    enabled = true,
+                    colors = AssistChipDefaults.assistChipColors(
+                      containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                      labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                      leadingIconContentColor = MaterialTheme.colorScheme.primary,
+                    ),
+                    border = null,
+                    leadingIcon = {
+                      Icon(
+                        imageVector = Icons.Outlined.Layers,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                      )
+                    },
+                    label = {
+                      Text(
+                        text = drawLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                      )
+                    },
+                  )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Time and moves line (wraps cleanly if needed without clipping)
                 Text(
-                  text = "${saved.difficulty} · ${saved.drawMode.replace("_", " ")}",
-                  style = MaterialTheme.typography.labelMedium,
-                  color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                  text = "Süre $formattedTime · Hamle ${saved.moveCount}",
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = MaterialTheme.colorScheme.onPrimaryContainer,
+                  modifier = Modifier.fillMaxWidth(),
                 )
-              }
 
-              Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-              Text(
-                text = "Süre: $formattedTime • Hamle: ${saved.moveCount}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-              )
-
-              Spacer(modifier = Modifier.height(14.dp))
-
-              Button(
-                onClick = onResumeGame,
-                modifier = Modifier
-                  .fillMaxWidth()
-                  .testTag("resume_game_button"),
-              ) {
-                Icon(
-                  imageVector = Icons.Outlined.PlayCircle,
-                  contentDescription = null,
-                  modifier = Modifier.size(20.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Devam Et", fontWeight = FontWeight.Bold)
+                Button(
+                  onClick = onResumeGame,
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .testTag("resume_game_button"),
+                ) {
+                  Icon(
+                    imageVector = Icons.Outlined.PlayCircle,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                  )
+                  Spacer(modifier = Modifier.width(8.dp))
+                  Text("Devam Et", fontWeight = FontWeight.Bold)
+                }
               }
             }
           }
         }
-      }
 
-      // --- BIG "NEW GAME" BUTTON (Only for Klondike) ---
-      if (uiState.selectedGameType == GameType.KLONDIKE) {
-        Column(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+        // --- BIG "NEW GAME" BUTTON (Only for Klondike) ---
+        if (uiState.selectedGameType == GameType.KLONDIKE) {
+          Column(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 20.dp, vertical = 14.dp),
         ) {
           FilledTonalButton(
             onClick = onNewGameClicked,
@@ -339,6 +422,7 @@ fun HomeScreen(
       }
     }
   }
+}
 
   // --- OVERWRITE CONFIRMATION DIALOG ---
   if (uiState.showConfirmOverwriteDialog) {
@@ -653,6 +737,48 @@ private fun StatItem(
       text = label,
       style = MaterialTheme.typography.labelSmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+  }
+}
+
+// -------------------------------------------------------------
+// Previews: Phone, Phone Landscape, Foldable, Tablet (1.0x & 2.0x fontScale)
+// -------------------------------------------------------------
+
+@Preview(name = "Phone - Font 1.0x", device = "spec:width=411dp,height=891dp", fontScale = 1.0f, showBackground = true)
+@Preview(name = "Phone - Font 2.0x", device = "spec:width=411dp,height=891dp", fontScale = 2.0f, showBackground = true)
+@Preview(name = "Landscape - Font 1.0x", device = "spec:width=891dp,height=411dp", fontScale = 1.0f, showBackground = true)
+@Preview(name = "Landscape - Font 2.0x", device = "spec:width=891dp,height=411dp", fontScale = 2.0f, showBackground = true)
+@Preview(name = "Foldable - Font 1.0x", device = "spec:width=673dp,height=841dp", fontScale = 1.0f, showBackground = true)
+@Preview(name = "Foldable - Font 2.0x", device = "spec:width=673dp,height=841dp", fontScale = 2.0f, showBackground = true)
+@Preview(name = "Tablet - Font 1.0x", device = "spec:width=1280dp,height=800dp", fontScale = 1.0f, showBackground = true)
+@Preview(name = "Tablet - Font 2.0x", device = "spec:width=1280dp,height=800dp", fontScale = 2.0f, showBackground = true)
+@Composable
+private fun HomeScreenPreview() {
+  SolitaireTheme {
+    HomeScreen(
+      uiState = HomeUiState(
+        selectedGameType = GameType.KLONDIKE,
+        savedKlondikeGame = SavedGameEntity(
+          gameType = "KLONDIKE",
+          difficulty = "REGULAR",
+          drawMode = "DRAW_ONE",
+          moveCount = 1,
+          elapsedSeconds = 10,
+          stateJson = "",
+          undoStackJson = "",
+        ),
+      ),
+      onSelectGameType = {},
+      onToggleFavorite = {},
+      onNewGameClicked = {},
+      onConfirmOverwrite = {},
+      onDismissOverwrite = {},
+      onDismissNewGameDialog = {},
+      onSetDialogDifficulty = {},
+      onSetDialogDrawMode = {},
+      onLaunchNewGame = { _, _ -> },
+      onResumeGame = {},
     )
   }
 }

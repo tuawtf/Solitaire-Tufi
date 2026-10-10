@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.DashboardCustomize
@@ -36,9 +37,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.tufisolitaire.wtf.R
 import com.tufisolitaire.wtf.game.GameType
+import com.tufisolitaire.wtf.ui.theme.SolitaireTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,105 +85,134 @@ fun GamePlaceholderScreen(
     },
     modifier = modifier.fillMaxSize(),
   ) { paddingValues ->
-    Column(
-      horizontalAlignment = Alignment.CenterHorizontally,
-      verticalArrangement = Arrangement.Center,
+    Box(
       modifier = Modifier
         .fillMaxSize()
-        .padding(paddingValues)
-        .padding(24.dp),
+        .padding(paddingValues),
+      contentAlignment = Alignment.Center,
     ) {
-      ElevatedCard(
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.elevatedCardColors(
-          containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        ),
+      Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
         modifier = Modifier
-          .fillMaxWidth()
-          .testTag("game_table_placeholder_card"),
+          .fillMaxSize()
+          .widthIn(max = 640.dp)
+          .padding(24.dp),
       ) {
-        Column(
-          horizontalAlignment = Alignment.CenterHorizontally,
+        ElevatedCard(
+          shape = MaterialTheme.shapes.extraLarge,
+          colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+          ),
           modifier = Modifier
             .fillMaxWidth()
-            .padding(24.dp),
+            .testTag("game_table_placeholder_card"),
         ) {
-          // Preview of card outlines indicating card slot positions
-          Row(
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.fillMaxWidth(),
+          Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(24.dp),
           ) {
-            repeat(4) {
-              Box(
-                modifier = Modifier
-                  .size(width = 44.dp, height = 62.dp)
-                  .padding(horizontal = 4.dp)
-                  .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                    shape = MaterialTheme.shapes.small,
-                  ),
-                contentAlignment = Alignment.Center,
-              ) {
-                Icon(
-                  imageVector = Icons.Outlined.Style,
-                  contentDescription = null,
-                  modifier = Modifier.size(16.dp),
-                  tint = MaterialTheme.colorScheme.outline,
-                )
+            // Preview of card outlines indicating card slot positions
+            Row(
+              horizontalArrangement = Arrangement.Center,
+              modifier = Modifier.fillMaxWidth(),
+            ) {
+              repeat(4) {
+                Box(
+                  modifier = Modifier
+                    .size(width = 44.dp, height = 62.dp)
+                    .padding(horizontal = 4.dp)
+                    .border(
+                      width = 1.dp,
+                      color = MaterialTheme.colorScheme.outlineVariant,
+                      shape = MaterialTheme.shapes.small,
+                    ),
+                  contentAlignment = Alignment.Center,
+                ) {
+                  Icon(
+                    imageVector = Icons.Outlined.Style,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.outline,
+                  )
+                }
               }
             }
-          }
 
-          Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-          Icon(
-            imageVector = Icons.Outlined.DashboardCustomize,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(48.dp),
-          )
+            Icon(
+              imageVector = Icons.Outlined.DashboardCustomize,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.size(48.dp),
+            )
 
-          Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-          Text(
-            text = stringResource(R.string.game_ready_title),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center,
-          )
+            Text(
+              text = stringResource(R.string.game_ready_title),
+              style = MaterialTheme.typography.headlineSmall,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onSurface,
+              textAlign = TextAlign.Center,
+            )
 
-          Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-          Text(
-            text = stringResource(R.string.game_ready_desc),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-          )
+            Text(
+              text = stringResource(R.string.game_ready_desc),
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              textAlign = TextAlign.Center,
+            )
 
-          Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-          Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-          ) {
-            OutlinedButton(
-              onClick = onNavigateBack,
-              modifier = Modifier.testTag("return_home_button"),
+            Row(
+              horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-              Text(stringResource(R.string.action_back))
-            }
+              OutlinedButton(
+                onClick = onNavigateBack,
+                modifier = Modifier.testTag("return_home_button"),
+              ) {
+                Text(stringResource(R.string.action_back))
+              }
 
-            FilledTonalButton(
-              onClick = { /* Ready for game start in next phase */ },
-              modifier = Modifier.testTag("ready_button"),
-            ) {
-              Text("Hazır")
+              FilledTonalButton(
+                onClick = { /* Ready for game start in next phase */ },
+                modifier = Modifier.testTag("ready_button"),
+              ) {
+                Text("Hazır")
+              }
             }
           }
         }
       }
     }
+  }
+}
+
+// -------------------------------------------------------------
+// Previews: Phone, Phone Landscape, Foldable, Tablet (1.0x & 2.0x fontScale)
+// -------------------------------------------------------------
+
+@Preview(name = "Placeholder Phone - Font 1.0x", device = "spec:width=411dp,height=891dp", fontScale = 1.0f, showBackground = true)
+@Preview(name = "Placeholder Phone - Font 2.0x", device = "spec:width=411dp,height=891dp", fontScale = 2.0f, showBackground = true)
+@Preview(name = "Placeholder Landscape - Font 1.0x", device = "spec:width=891dp,height=411dp", fontScale = 1.0f, showBackground = true)
+@Preview(name = "Placeholder Landscape - Font 2.0x", device = "spec:width=891dp,height=411dp", fontScale = 2.0f, showBackground = true)
+@Preview(name = "Placeholder Foldable - Font 1.0x", device = "spec:width=673dp,height=841dp", fontScale = 1.0f, showBackground = true)
+@Preview(name = "Placeholder Foldable - Font 2.0x", device = "spec:width=673dp,height=841dp", fontScale = 2.0f, showBackground = true)
+@Preview(name = "Placeholder Tablet - Font 1.0x", device = "spec:width=1280dp,height=800dp", fontScale = 1.0f, showBackground = true)
+@Preview(name = "Placeholder Tablet - Font 2.0x", device = "spec:width=1280dp,height=800dp", fontScale = 2.0f, showBackground = true)
+@Composable
+private fun GamePlaceholderScreenPreview() {
+  SolitaireTheme {
+    GamePlaceholderScreen(
+      gameTypeKey = "SPIDER",
+      onNavigateBack = {},
+    )
   }
 }
