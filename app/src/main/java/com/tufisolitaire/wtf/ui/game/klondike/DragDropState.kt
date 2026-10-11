@@ -24,6 +24,7 @@ data class DraggedCardData(
   val grabOffset: Offset,
   val cardWidth: Dp = 48.dp,
   val cardHeight: Dp = 67.dp,
+  val stepHeight: Dp = 0.dp,
 )
 
 class DragDropController {

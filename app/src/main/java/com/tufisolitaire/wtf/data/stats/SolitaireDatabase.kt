@@ -27,7 +27,7 @@ abstract class SolitaireDatabase : RoomDatabase() {
           context.applicationContext,
           SolitaireDatabase::class.java,
           "solitaire_database",
-        ).fallbackToDestructiveMigration().build()
+        ).fallbackToDestructiveMigration(dropAllTables = true).build()
         INSTANCE = instance
         instance
       }

@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class KlondikeViewModel(application: Application) : AndroidViewModel(application) {
 
   private val database = SolitaireDatabase.getDatabase(application)

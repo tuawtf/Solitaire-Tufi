@@ -13,6 +13,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -580,13 +581,12 @@ fun KlondikeGameScreen(
           .fillMaxWidth()
           .weight(1f)
           .background(boardGradient)
-          .padding(horizontal = 4.dp)
-          .onGloballyPositioned { coords ->
-            boardOriginRoot = coords.positionInRoot()
-          },
+          .systemGestureExclusion()
+          .padding(horizontal = 12.dp),
       ) {
         val spacing = 4.dp
-        val widthBasedCardWidth = (maxWidth - (spacing * 8)) / 7
+        val gaps = spacing * 6
+        val widthBasedCardWidth = (maxWidth - gaps) / 7
         val heightBasedCardWidth = (maxHeight - 24.dp) / (1.4f * 3.6f)
         val cardWidth = minOf(widthBasedCardWidth, heightBasedCardWidth).coerceIn(36.dp, 96.dp)
         val cardHeight = cardWidth * 1.4f
@@ -598,7 +598,11 @@ fun KlondikeGameScreen(
         }
 
         Box(
-          modifier = Modifier.fillMaxSize(),
+          modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { coords ->
+              boardOriginRoot = coords.positionInRoot()
+            },
           contentAlignment = Alignment.TopCenter,
         ) {
           Column(modifier = Modifier.width(boardWidth)) {
@@ -667,7 +671,7 @@ fun KlondikeGameScreen(
               currentHint = currentHint,
               cardBackStyle = settings.cardBack,
               onCardTap = handleTableauCardTap,
-              onStartDragTableau = { colIndex, cardIndex, cards, grabOffset, startRootPos ->
+              onStartDragTableau = { colIndex, cardIndex, cards, grabOffset, startRootPos, stepHeight ->
                 if (!isSnapBackAnimating) {
                   startDragRootPosition = startRootPos
                   draggedData = DraggedCardData(
@@ -676,6 +680,7 @@ fun KlondikeGameScreen(
                     grabOffset = grabOffset,
                     cardWidth = cardWidth,
                     cardHeight = cardHeight,
+                    stepHeight = stepHeight,
                   )
                   haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 }
@@ -696,10 +701,11 @@ fun KlondikeGameScreen(
             val dragCards = activeDrag.cards
             val cardW = activeDrag.cardWidth
             val cardH = activeDrag.cardHeight
-            val verticalSpacing = cardH * 0.32f
+            val step = activeDrag.stepHeight
 
             Box(
               modifier = Modifier
+                .align(Alignment.TopStart)
                 .offset {
                   val x = (fingerRootPosition.x - activeDrag.grabOffset.x - boardOriginRoot.x).roundToInt()
                   val y = (fingerRootPosition.y - activeDrag.grabOffset.y - boardOriginRoot.y).roundToInt()
@@ -708,10 +714,10 @@ fun KlondikeGameScreen(
                 .scale(if (isSnapBackAnimating) 1.0f else 1.05f)
                 .shadow(if (isSnapBackAnimating) 6.dp else 16.dp, MaterialTheme.shapes.extraSmall),
             ) {
-              Column {
+              Box {
                 dragCards.forEachIndexed { idx, card ->
                   Box(
-                    modifier = Modifier.offset(y = if (idx > 0) -verticalSpacing * 0.3f else 0.dp),
+                    modifier = Modifier.offset(y = step * idx),
                   ) {
                     CardView(
                       card = card,
@@ -1210,7 +1216,7 @@ private fun TableauRow(
   currentHint: HintInfo? = null,
   cardBackStyle: com.tufisolitaire.wtf.data.settings.CardBackStyle = com.tufisolitaire.wtf.data.settings.CardBackStyle.PRIMARY,
   onCardTap: (Int, Int) -> Unit,
-  onStartDragTableau: (Int, Int, List<CardModel>, Offset, Offset) -> Unit,
+  onStartDragTableau: (Int, Int, List<CardModel>, Offset, Offset, Dp) -> Unit,
   onUpdateDragPosition: (Offset) -> Unit,
   onEndDrag: () -> Unit,
   onCancelDrag: () -> Unit,
@@ -1303,7 +1309,7 @@ private fun TableauRow(
                             listOf(currentCard)
                           }
                           val startRootPos = cardRootPos + localOffset
-                          currentOnStartDragTableau(currentColIndex, currentCardIndex, movingCards, localOffset, startRootPos)
+                          currentOnStartDragTableau(currentColIndex, currentCardIndex, movingCards, localOffset, startRootPos, faceUpStep)
                           currentOnUpdateDragPosition(startRootPos)
                         },
                         onDrag = { _, currentLocalPos ->
