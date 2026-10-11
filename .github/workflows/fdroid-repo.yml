@@ -10,18 +10,21 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: fdroid-repo
+  cancel-in-progress: false
+
 jobs:
   publish-fdroid-repo:
     name: Build & Publish F-Droid Repository
-    # Yalnızca manuel tetiklendiğinde veya workflow_run başarıyla bittiğinde çalış
+    # Yalnızca manuel tetiklendiğinde veya sürüm workflow'u başarıyla bittiğinde çalış
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository (main)
+      - name: Checkout repository (fastlane metadata ve LICENSE için)
         uses: actions/checkout@v4
         with:
-          ref: main
           path: main-repo
           fetch-depth: 1
 
@@ -29,15 +32,20 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
-      - name: Install fdroidserver & dependencies
+      - name: Install fdroidserver
         run: |
           python -m pip install --upgrade pip
-          pip install fdroidserver androguard
-          # Android SDK build-tools doğrulaması
-          echo "ANDROID_HOME=${ANDROID_HOME}" >> $GITHUB_ENV
-          echo "PATH=${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/build-tools/34.0.0:${PATH}" >> $GITHUB_PATH
+          pip install fdroidserver
+
+          # Android SDK build-tools (apksigner) yolunu bul ve PATH'e ekle
+          if [ -n "${ANDROID_HOME:-}" ] && [ -d "${ANDROID_HOME}/build-tools" ]; then
+            BT="$(ls -d "${ANDROID_HOME}"/build-tools/* | sort -V | tail -1)"
+            echo "Build-tools: $BT"
+            echo "$BT" >> "$GITHUB_PATH"
+          else
+            echo "::warning::ANDROID_HOME/build-tools bulunamadı, apksigner doğrulaması çalışmayabilir"
+          fi
 
       - name: Validate secrets and decode keystore
         env:
@@ -51,46 +59,189 @@ jobs:
             exit 1
           fi
 
-          # Mask secret values
           echo "::add-mask::$STORE_PASSWORD"
           echo "::add-mask::$KEY_PASSWORD"
 
           ALIAS="${KEY_ALIAS:-upload}"
-          echo "::add-mask::$ALIAS"
-          echo "RESOLVED_KEY_ALIAS=$ALIAS" >> $GITHUB_ENV
+          echo "RESOLVED_KEY_ALIAS=$ALIAS" >> "$GITHUB_ENV"
 
           WORKDIR="${RUNNER_TEMP}/fdroid_workspace"
           mkdir -p "$WORKDIR"
-          echo "FDROID_WORKDIR=$WORKDIR" >> $GITHUB_ENV
+          echo "FDROID_WORKDIR=$WORKDIR" >> "$GITHUB_ENV"
 
           # Keystore dosyasını geçici çalışma klasörüne çöz
-          echo "$KEYSTORE_BASE64" | base64 -d > "$WORKDIR/keystore.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$WORKDIR/keystore.jks"
           chmod 600 "$WORKDIR/keystore.jks"
 
-      - name: Setup F-Droid workspace & configuration
+          # Şifre ve alias doğru mu kontrol et (şifre komut satırına yazılmaz)
+          if ! keytool -list -keystore "$WORKDIR/keystore.jks" -alias "$ALIAS" -storepass:env STORE_PASSWORD > /dev/null 2>&1; then
+            echo "::error::Keystore açılamadı. KEYSTORE_BASE64, STORE_PASSWORD veya KEY_ALIAS yanlış olabilir"
+            exit 1
+          fi
+
+          # Depo imza sertifikasının SHA-256 parmak izini hesapla (F-Droid formatı: küçük harf, iki noktasız)
+          FP="$(LC_ALL=C keytool -list -v -keystore "$WORKDIR/keystore.jks" -alias "$ALIAS" -storepass:env STORE_PASSWORD | grep -m1 'SHA256:' | sed 's/.*SHA256: *//' | tr -d ':' | tr 'A-F' 'a-f')"
+          if [ -z "$FP" ]; then
+            echo "::error::Parmak izi hesaplanamadı"
+            exit 1
+          fi
+          echo "REPO_FINGERPRINT=$FP" >> "$GITHUB_ENV"
+
+      - name: Setup F-Droid workspace and config
         env:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          WORKDIR="${FDROID_WORKDIR}"
           REPO_NAME_ONLY="${GITHUB_REPOSITORY#*/}"
           REPO_OWNER="${GITHUB_REPOSITORY%/*}"
           REPO_URL="https://${REPO_OWNER}.github.io/${REPO_NAME_ONLY}/repo"
+          echo "REPO_NAME_ONLY=$REPO_NAME_ONLY" >> "$GITHUB_ENV"
+          echo "REPO_OWNER=$REPO_OWNER" >> "$GITHUB_ENV"
+          echo "REPO_URL=$REPO_URL" >> "$GITHUB_ENV"
 
-          echo "REPO_NAME_ONLY=$REPO_NAME_ONLY" >> $GITHUB_ENV
-          echo "REPO_URL=$REPO_URL" >> $GITHUB_ENV
+          mkdir -p "$FDROID_WORKDIR/fdroid/repo"
+          mkdir -p "$FDROID_WORKDIR/fdroid/metadata"
 
-          mkdir -p "$WORKDIR/fdroid/repo"
-          mkdir -p "$WORKDIR/fdroid/metadata/com.tufisolitaire.wtf"
+          # config.yml: değerler JSON olarak yazılır (özel karakterli şifrelerde bozulmaz).
+          # Bu dosya yalnızca geçici klasörde kalır, asla yayınlanmaz.
+          REPO_URL="$REPO_URL" python3 - <<'PY'
+          import json, os
+          wd = os.environ["FDROID_WORKDIR"]
+          cfg = {
+              "repo_url": os.environ["REPO_URL"],
+              "repo_name": "Solitaire",
+              "repo_description": "Solitaire (Klondike) - Modern, reklamsız ve açık kaynaklı kart oyunu. / Modern, ad-free and open-source solitaire game.",
+              "repo_keyalias": os.environ["RESOLVED_KEY_ALIAS"],
+              "keystore": wd + "/keystore.jks",
+              "keystorepass": os.environ["STORE_PASSWORD"],
+              "keypass": os.environ["KEY_PASSWORD"],
+              "keydname": "CN=Solitaire, O=Tuna Demir, C=TR",
+              "archive_older": 0,
+          }
+          with open(wd + "/fdroid/config.yml", "w") as f:
+              for k, v in cfg.items():
+                  f.write(k + ": " + json.dumps(v, ensure_ascii=False) + "\n")
+          os.chmod(wd + "/fdroid/config.yml", 0o600)
+          PY
 
-          # fdroid/config.yml oluştur (Yalnızca geçici klasörde kalır)
-          cat <<EOF > "$WORKDIR/fdroid/config.yml"
-repo_url: "${REPO_URL}"
-repo_name: "Solitaire"
-repo_description: "Solitaire (Klondike) - Modern, reklamsız ve açık kaynaklı kart oyunu. / Modern, ad-free and open-source solitaire game."
-repo_keyalias: "${RESOLVED_KEY_ALIAS}"
-keystore: "${WORKDIR}/keystore.jks"
-keystorepass: "${STORE_PASSWORD}"
-keypass: "${KEY_PASSWORD}"
-keydname: "CN=Solitaire, O=Tuna Demir, C=TR"
-archive_older: 0
+      - name: Download latest release APKs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd "$FDROID_WORKDIR/fdroid"
+
+          TAGS="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 20 --json tagName,isDraft,isPrerelease --jq '[.[] | select(.isDraft==false and .isPrerelease==false)][0:3][].tagName')"
+          if [ -z "$TAGS" ]; then
+            echo "::error::Yayınlanmış release bulunamadı. Önce Actions'tan sürüm yayınla"
+            exit 1
+          fi
+
+          for TAG in $TAGS; do
+            echo "İndiriliyor: $TAG"
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'Solitaire-v*.apk' --dir repo --clobber || echo "::warning::$TAG içinde APK bulunamadı"
+          done
+
+          if ! ls repo/*.apk > /dev/null 2>&1; then
+            echo "::error::Hiç APK indirilemedi"
+            exit 1
+          fi
+          ls -la repo
+
+      - name: Prepare app metadata
+        run: |
+          APPID="com.tufisolitaire.wtf"
+          cd "$FDROID_WORKDIR/fdroid"
+
+          # fastlane açıklamaları ve görselleri (varsa) depo metadata'sına kopyala
+          mkdir -p "metadata/$APPID"
+          if [ -d "$GITHUB_WORKSPACE/main-repo/fastlane/metadata/android" ]; then
+            cp -r "$GITHUB_WORKSPACE"/main-repo/fastlane/metadata/android/. "metadata/$APPID/"
+          fi
+
+          # Uygulama bilgileri (gizli bir şey içermez)
+          {
+            echo "Categories:"
+            echo "  - Games"
+            echo "License: MIT"
+            echo "AuthorName: Tuna Demir"
+            echo "SourceCode: https://github.com/${GITHUB_REPOSITORY}"
+            echo "IssueTracker: https://github.com/${GITHUB_REPOSITORY}/issues"
+            echo "Changelog: https://github.com/${GITHUB_REPOSITORY}/releases"
+            echo "AutoName: Solitaire"
+          } > "metadata/${APPID}.yml"
+
+      - name: Generate F-Droid index
+        run: |
+          cd "$FDROID_WORKDIR/fdroid"
+          fdroid update --create-metadata --verbose
+          test -f repo/index-v1.jar || test -f repo/index-v2.json || { echo "::error::Depo indeksi üretilemedi"; exit 1; }
+          ls -la repo | head -30
+
+      - name: Publish to gh-pages branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          # gh-pages varsa klonla, yoksa boş bir dal başlat
+          if git ls-remote --exit-code --heads "$REMOTE" gh-pages > /dev/null 2>&1; then
+            git clone --branch gh-pages --single-branch --depth 1 "$REMOTE" pages
+          else
+            mkdir pages
+            git -C pages init -b gh-pages
+            git -C pages remote add origin "$REMOTE"
+          fi
+
+          # Yalnızca repo/ klasörü yayınlanır; keystore ve config.yml ASLA girmez
+          mkdir -p pages/repo
+          rsync -a --delete "$FDROID_WORKDIR/fdroid/repo/" pages/repo/
+          touch pages/.nojekyll
+
+          FDROID_LINK="fdroidrepos://${REPO_OWNER}.github.io/${REPO_NAME_ONLY}/repo?fingerprint=${REPO_FINGERPRINT}"
+          WEB_LINK="${REPO_URL}?fingerprint=${REPO_FINGERPRINT}"
+
+          cat > pages/index.html <<HTML
+          <!doctype html>
+          <html lang="tr">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Solitaire F-Droid Deposu</title>
+          <style>body{font-family:sans-serif;max-width:640px;margin:2rem auto;padding:0 1rem;line-height:1.5}code{word-break:break-all;background:#eee;padding:2px 4px}</style>
+          </head>
+          <body>
+          <h1>Solitaire F-Droid Deposu</h1>
+          <p>Bu depoyu F-Droid, Droid-ify veya Neo Store gibi bir uygulamaya ekleyebilirsin. / Add this repository to F-Droid, Droid-ify or Neo Store.</p>
+          <p><a href="${FDROID_LINK}">Depoyu F-Droid'e ekle / Add repo</a></p>
+          <p>Adres / URL:<br><code>${REPO_URL}</code></p>
+          <p>Parmak izi / Fingerprint (SHA-256):<br><code>${REPO_FINGERPRINT}</code></p>
+          <p><a href="https://github.com/${GITHUB_REPOSITORY}">GitHub</a></p>
+          </body>
+          </html>
+          HTML
+
+          cd pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Değişiklik yok, yayınlanacak yeni bir şey yok."
+          else
+            git commit -m "Update F-Droid repository (${GITHUB_SHA::7})"
+            git push origin gh-pages
+          fi
+
+          {
+            echo "## F-Droid deposu hazır"
+            echo ""
+            echo "- Depo adresi: \`${REPO_URL}\`"
+            echo "- Parmak izi (SHA-256): \`${REPO_FINGERPRINT}\`"
+            echo "- Ekleme bağlantısı: ${WEB_LINK}"
+            echo ""
+            echo "Settings → Pages → Branch: gh-pages, klasör: / (root) olarak ayarlı olmalı."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cleanup temporary files
+        if: always()
+        run: |
+          rm -rf "${FDROID_WORKDIR:-/nonexistent}" || true
