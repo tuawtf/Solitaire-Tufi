@@ -104,7 +104,23 @@ jobs:
             exit 1
           fi
           echo "$KEYSTORE_BASE64" \vert{} base64 -d > "${{ github.workspace }}/release.keystore"
+ 
+      - name: Inspect Keystore
+        env:
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'upload' }}
+        run: |
+          echo "Dosya türü ve ilk baytlar:"
+          file "${{ github.workspace }}/release.keystore"
+          head -c 10 "${{ github.workspace }}/release.keystore" | od -c
 
+          echo "Store ve Key şifresi testi:"
+          keytool -list -v -keystore "${{ github.workspace }}/release.keystore" \
+            -alias "$KEY_ALIAS" \
+            -storepass:env STORE_PASSWORD \
+            -keypass:env KEY_PASSWORD
+            
       - name: Build Release APK and AAB
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
