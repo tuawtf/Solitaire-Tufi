@@ -58,8 +58,7 @@ jobs:
           fi
 
           if [ "$IS_RELEASE" = "true" ]; then
-            # Sürüm formatını doğrula: ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$
-            REGEX='^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'
+            # Sürüm formatını doğrula: ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$REGEX='^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'
             if [[ ! "$RAW_VERSION" =~ $REGEX ]]; then
               echo "::error::Geçersiz sürüm biçimi: '$RAW_VERSION'. Beklenen biçim: 1.2.0, v1.2.0 veya 1.2.0-beta.1"
               exit 1
@@ -71,7 +70,7 @@ jobs:
 
             # Eğer workflow_dispatch ile tetiklendiyse ve tag uzak depoda zaten varsa hata ver
             if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-              if git rev-parse "$TAG_NAME" >/dev/null 2>&1 || git ls-remote --tags origin "refs/tags/$TAG_NAME" | grep -q "$TAG_NAME"; then
+              if git rev-parse "$TAG_NAME" >/dev/null 2>&1 || git ls-remote --tags origin "refs/tags/$TAG_NAME" \vert{} grep -q "$TAG_NAME"; then
                 echo "::error::'$TAG_NAME' etiketi depoda zaten mevcut! Lütfen yeni bir sürüm numarası belirleyin."
                 exit 1
               fi
@@ -104,7 +103,7 @@ jobs:
             echo "::error::Release imzalama secret'ları tanımlı değil (KEYSTORE_BASE64 eksik)!"
             exit 1
           fi
-          echo "$KEYSTORE_BASE64" | base64 -d > "${{ github.workspace }}/release.keystore"
+          echo "$KEYSTORE_BASE64" \vert{} base64 -d > "${{ github.workspace }}/release.keystore"
 
       - name: Build Release APK and AAB
         env:
@@ -113,7 +112,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'upload' }}
         run: |
-          if [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_PASSWORD" ]; then
+          if [ -z "$STORE_PASSWORD" ] \vert{}\vert{} [ -z "$KEY_PASSWORD" ]; then
             echo "::error::Release imzalama secret'ları tanımlı değil (STORE_PASSWORD veya KEY_PASSWORD eksik)!"
             exit 1
           fi
@@ -130,13 +129,13 @@ jobs:
           APK_SRC=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
           AAB_SRC=$(find app/build/outputs/bundle/release -name "*.aab" | head -n 1)
 
-          if [ ! -f "$APK_SRC" ] || [ ! -f "$AAB_SRC" ]; then
+          if [ ! -f "$APK_SRC" ] \vert{}\vert{} [ ! -f "$AAB_SRC" ]; then
             echo "::error::APK veya AAB derleme çıktısı bulunamadı!"
             exit 1
           fi
 
-          APK_NAME="Solitaire-${CLEAN_VER}.apk"
-          AAB_NAME="Solitaire-${CLEAN_VER}.aab"
+          APK_NAME="Solitaire-v${CLEAN_VER}.apk"
+          AAB_NAME="Solitaire-v${CLEAN_VER}.aab"
 
           cp "$APK_SRC" "dist/${APK_NAME}"
           cp "$AAB_SRC" "dist/${AAB_NAME}"
@@ -183,3 +182,4 @@ jobs:
               `${{ steps.package_artifacts.outputs.apk_sha256 }}`
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
