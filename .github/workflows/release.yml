@@ -70,7 +70,7 @@ jobs:
 
             # Eğer workflow_dispatch ile tetiklendiyse ve tag uzak depoda zaten varsa hata ver
             if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-              if git rev-parse "$TAG_NAME" >/dev/null 2>&1 || git ls-remote --tags origin "refs/tags/$TAG_NAME" \vert{} grep -q "$TAG_NAME"; then
+              if git rev-parse "$TAG_NAME" >/dev/null 2>&1 || (git ls-remote --tags origin "refs/tags/$TAG_NAME" | grep -q "$TAG_NAME"); then
                 echo "::error::'$TAG_NAME' etiketi depoda zaten mevcut! Lütfen yeni bir sürüm numarası belirleyin."
                 exit 1
               fi
