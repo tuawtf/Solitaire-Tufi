@@ -28,6 +28,7 @@ class SettingsRepository(private val context: Context) {
     val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
     val CARD_BACK = stringPreferencesKey("card_back")
     val ANIMATIONS_ENABLED = booleanPreferencesKey("animations_enabled")
+    val APP_LANGUAGE = stringPreferencesKey("app_language")
   }
 
   val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -52,6 +53,11 @@ class SettingsRepository(private val context: Context) {
         CardBackStyle.PRIMARY
       },
       animationsEnabled = prefs[Keys.ANIMATIONS_ENABLED] ?: true,
+      appLanguage = try {
+        AppLanguage.valueOf(prefs[Keys.APP_LANGUAGE] ?: AppLanguage.SYSTEM.name)
+      } catch (_: Exception) {
+        AppLanguage.SYSTEM
+      },
     )
   }
 
@@ -101,5 +107,9 @@ class SettingsRepository(private val context: Context) {
 
   suspend fun setAnimationsEnabled(enabled: Boolean) {
     context.dataStore.edit { it[Keys.ANIMATIONS_ENABLED] = enabled }
+  }
+
+  suspend fun setAppLanguage(language: AppLanguage) {
+    context.dataStore.edit { it[Keys.APP_LANGUAGE] = language.name }
   }
 }

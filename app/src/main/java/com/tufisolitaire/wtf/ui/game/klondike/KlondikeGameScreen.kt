@@ -543,7 +543,7 @@ fun KlondikeGameScreen(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                  text = currentHint.message,
+                  text = currentHint.message.asString(),
                   style = MaterialTheme.typography.bodySmall,
                   color = MaterialTheme.colorScheme.onTertiaryContainer,
                   fontWeight = FontWeight.Medium,
@@ -555,7 +555,7 @@ fun KlondikeGameScreen(
               ) {
                 Icon(
                   imageVector = Icons.Filled.Close,
-                  contentDescription = "Kapat",
+                  contentDescription = stringResource(R.string.action_close),
                   tint = MaterialTheme.colorScheme.onTertiaryContainer,
                   modifier = Modifier.size(16.dp),
                 )
@@ -619,7 +619,7 @@ fun KlondikeGameScreen(
               cardBackStyle = settings.cardBack,
               onDrawFromStock = {
                 if (onDrawFromStock()) {
-                  soundManager.playCardFlip(settings)
+                  soundManager.playCardDraw(settings)
                   hapticsManager.performMove(haptic, settings)
                 }
               },
@@ -1538,15 +1538,10 @@ private fun GameActionButtonsRow(
   haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
   modifier: Modifier = Modifier,
 ) {
-  val configuration = LocalConfiguration.current
-  val density = LocalDensity.current
-  val fontScale = density.fontScale
-  val screenWidthDp = configuration.screenWidthDp
-
   val hasHint = gameState.difficulty.hasHints
   val canAutoComplete = gameState.canAutoComplete
 
-  var forceIconOnly by remember(screenWidthDp, fontScale, hasHint, canAutoComplete) {
+  var textOverflowed by remember(canAutoComplete, hasHint) {
     mutableStateOf(false)
   }
 
@@ -1568,80 +1563,88 @@ private fun GameActionButtonsRow(
     modifier = modifier.fillMaxWidth(),
     contentAlignment = Alignment.Center,
   ) {
-    Row(
+    BoxWithConstraints(
       modifier = Modifier
         .fillMaxWidth()
         .widthIn(max = 560.dp)
         .padding(horizontal = 8.dp, vertical = 4.dp),
-      horizontalArrangement = Arrangement.spacedBy(6.dp),
-      verticalAlignment = Alignment.CenterVertically,
     ) {
-      // 1. Undo Button
-      ActionButtonItem(
-        onClick = {
-          if (onUndo()) {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-          }
-        },
-        enabled = canUndo,
-        icon = Icons.AutoMirrored.Filled.Undo,
-        label = undoLabel,
-        fullLabel = undoFullText,
-        testTag = "undo_button",
-        isIconOnly = forceIconOnly,
-        onOverflow = { forceIconOnly = true },
-        modifier = Modifier.weight(1f),
-      )
+      val visibleButtonCount = 2 + (if (canAutoComplete) 1 else 0) + (if (hasHint) 1 else 0)
+      val requiredWidthForText = (120.dp * visibleButtonCount) + (8.dp * (visibleButtonCount - 1))
+      val isIconOnly = textOverflowed || (maxWidth < requiredWidthForText)
 
-      // 2. Hint Button
-      if (hasHint) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        // 1. Undo Button
         ActionButtonItem(
           onClick = {
-            onRequestHint()
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            if (onUndo()) {
+              haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            }
           },
+          enabled = canUndo,
+          icon = Icons.AutoMirrored.Filled.Undo,
+          label = undoLabel,
+          fullLabel = undoFullText,
+          testTag = "undo_button",
+          isIconOnly = isIconOnly,
+          onOverflow = { textOverflowed = true },
+          modifier = Modifier.weight(1f),
+        )
+
+        // 2. Hint Button
+        if (hasHint) {
+          ActionButtonItem(
+            onClick = {
+              onRequestHint()
+              haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            },
+            enabled = true,
+            icon = Icons.Filled.Lightbulb,
+            iconTint = MaterialTheme.colorScheme.tertiary,
+            label = hintText,
+            fullLabel = hintText,
+            testTag = "hint_button",
+            isIconOnly = isIconOnly,
+            onOverflow = { textOverflowed = true },
+            modifier = Modifier.weight(1f),
+          )
+        }
+
+        // 3. Auto Complete Button
+        if (canAutoComplete) {
+          ActionButtonItem(
+            onClick = {
+              onStartAutoComplete()
+              haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            },
+            enabled = !isAutoCompleting,
+            icon = Icons.Filled.AutoAwesome,
+            label = if (isAutoCompleting) "..." else autoCompleteShort,
+            fullLabel = autoCompleteFull,
+            testTag = "auto_complete_button",
+            isIconOnly = isIconOnly,
+            onOverflow = { textOverflowed = true },
+            modifier = Modifier.weight(1f),
+          )
+        }
+
+        // 4. Give Up Button
+        ActionButtonItem(
+          onClick = onGiveUp,
           enabled = true,
-          icon = Icons.Filled.Lightbulb,
-          iconTint = MaterialTheme.colorScheme.tertiary,
-          label = hintText,
-          fullLabel = hintText,
-          testTag = "hint_button",
-          isIconOnly = forceIconOnly,
-          onOverflow = { forceIconOnly = true },
+          icon = Icons.Outlined.Flag,
+          label = giveUpText,
+          fullLabel = giveUpText,
+          testTag = "give_up_button",
+          isIconOnly = isIconOnly,
+          onOverflow = { textOverflowed = true },
           modifier = Modifier.weight(1f),
         )
       }
-
-      // 3. Auto Complete Button
-      if (canAutoComplete) {
-        ActionButtonItem(
-          onClick = {
-            onStartAutoComplete()
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-          },
-          enabled = !isAutoCompleting,
-          icon = Icons.Filled.AutoAwesome,
-          label = if (isAutoCompleting) "..." else autoCompleteShort,
-          fullLabel = autoCompleteFull,
-          testTag = "auto_complete_button",
-          isIconOnly = forceIconOnly,
-          onOverflow = { forceIconOnly = true },
-          modifier = Modifier.weight(1f),
-        )
-      }
-
-      // 4. Give Up Button
-      ActionButtonItem(
-        onClick = onGiveUp,
-        enabled = true,
-        icon = Icons.Outlined.Flag,
-        label = giveUpText,
-        fullLabel = giveUpText,
-        testTag = "give_up_button",
-        isIconOnly = forceIconOnly,
-        onOverflow = { forceIconOnly = true },
-        modifier = Modifier.weight(1f),
-      )
     }
   }
 }
@@ -1674,23 +1677,23 @@ private fun ActionButtonItem(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier
-          .heightIn(min = 48.dp)
+          .height(52.dp)
           .testTag(testTag),
       ) {
         Icon(
           imageVector = icon,
           contentDescription = fullLabel,
           tint = if (iconTint != androidx.compose.ui.graphics.Color.Unspecified) iconTint else androidx.compose.material3.LocalContentColor.current,
-          modifier = Modifier.size(20.dp),
+          modifier = Modifier.size(22.dp),
         )
       }
     } else {
       FilledTonalButton(
         onClick = onClick,
         enabled = enabled,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp),
         modifier = modifier
-          .heightIn(min = 48.dp)
+          .height(52.dp)
           .testTag(testTag),
       ) {
         Row(
@@ -1701,12 +1704,12 @@ private fun ActionButtonItem(
             imageVector = icon,
             contentDescription = null,
             tint = if (iconTint != androidx.compose.ui.graphics.Color.Unspecified) iconTint else androidx.compose.material3.LocalContentColor.current,
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(18.dp),
           )
-          Spacer(modifier = Modifier.width(4.dp))
+          Spacer(modifier = Modifier.width(6.dp))
           Text(
             text = label,
-            fontSize = 11.sp,
+            style = MaterialTheme.typography.labelLarge,
             maxLines = 1,
             softWrap = false,
             onTextLayout = { textLayoutResult ->

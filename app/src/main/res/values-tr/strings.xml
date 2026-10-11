@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Name -->
+    <string name="app_name">Solitaire</string>
+    <string name="title_solitaire">Solitaire</string>
+    <string name="title_klondike">Klondike</string>
+    <string name="title_spider">Spider</string>
+    <string name="title_freecell">FreeCell</string>
+    <string name="title_pyramid">Pyramid</string>
+
+    <!-- General Actions -->
+    <string name="action_back">Geri</string>
+    <string name="action_close">Kapat</string>
+    <string name="action_exit">Çık</string>
+    <string name="action_cancel">Vazgeç</string>
+    <string name="action_reset">Sıfırla</string>
+    <string name="action_undo">Geri Al</string>
+    <string name="action_give_up">Pes Et</string>
+    <string name="action_hint">İpucu</string>
+    <string name="action_auto_complete">Otomatik Tamamla</string>
+    <string name="action_auto_complete_short">Tamamla</string>
+    <string name="action_new_game">Yeni Oyun</string>
+    <string name="action_continue">Devam Et</string>
+    <string name="action_settings">Ayarlar</string>
+    <string name="action_stats">İstatistikler</string>
+    <string name="action_play_again">Tekrar Oyna</string>
+    <string name="action_main_menu">Ana Menü</string>
+
+    <!-- Game Modes & Difficulties -->
+    <string name="diff_relaxed">Rahat</string>
+    <string name="diff_regular">Normal</string>
+    <string name="diff_hard">Zor</string>
+    <string name="draw_one">1 Kart</string>
+    <string name="draw_three">3 Kart</string>
+    <string name="game_coming_soon">Yakında</string>
+    <string name="select_difficulty">Zorluk</string>
+    <string name="select_draw_mode">Kart Çekme Modu</string>
+
+    <!-- HUD & Stats -->
+    <string name="label_moves">Hamle</string>
+    <string name="label_time">Süre</string>
+    <string name="label_score">Skor</string>
+    <string name="stats_win_rate">Kazanma Oranı</string>
+    <string name="stats_played">Oynanan</string>
+    <string name="stats_won">Kazanılan</string>
+    <string name="stats_best_time">En İyi Süre</string>
+    <string name="stats_fewest_moves">En İyi Hamle</string>
+    <string name="stats_high_score">En Yüksek Skor</string>
+    <string name="stats_current_streak">Mevcut Seri</string>
+    <string name="stats_best_streak">En İyi Seri</string>
+    <string name="no_stats_available">Bu mod için henüz oynanmış oyun kaydı yok.</string>
+
+    <!-- Dialogs & Notices -->
+    <string name="dialog_exit_title">Oyundan Çıkış</string>
+    <string name="dialog_exit_message">Oyundan çıkmak istiyor musunuz? Oyun kaydedilecek ve Ana Menü\'den Devam Et ile sürdürebilirsiniz.</string>
+    <string name="dialog_give_up_title">Pes Etmek İstiyor Musunuz?</string>
+    <string name="dialog_give_up_message">Bu oyundan pes ederseniz istatistiklerinize kayıp olarak yansıtılacaktır.</string>
+    <string name="dialog_no_moves_title">Hamle Kalmadı</string>
+    <string name="dialog_no_moves_message">Tahtada oynanabilecek başka hamle bulunmuyor.</string>
+    <string name="dialog_win_title">Tebrikler, Kazandınız!</string>
+    <string name="dialog_win_message">Tüm kartları başarıyla foundation yuvalarına yerleştirdiniz.</string>
+    <string name="dialog_win_new_record">Yeni Rekor!</string>
+    <string name="dialog_win_time">Süre: %s</string>
+    <string name="dialog_win_moves">Hamle: %d</string>
+    <string name="dialog_win_score">Skor: %d</string>
+    <string name="dialog_reset_stats_title">İstatistikleri Sıfırla</string>
+    <string name="dialog_reset_stats_message">Tüm kazanma/oynanma sayıları silinecek. Devam eden oyun etkilenmez.</string>
+    <string name="msg_stats_reset">İstatistikler sıfırlandı.</string>
+    <string name="msg_link_open_failed">Bağlantı açılamadı.</string>
+    <string name="msg_no_saved_game">Kayıtlı oyun bulunamadı.</string>
+
+    <!-- Hints -->
+    <string name="hint_draw_stock">Desteden yeni kart çekebilirsiniz.</string>
+    <string name="hint_recycle_stock">Desteyi geri dönüştürerek kartları yeniden gözden geçirebilirsiniz.</string>
+    <string name="hint_waste_to_foundation">Waste\'teki %1$s %2$s foundation yuvasına taşınabilir.</string>
+    <string name="hint_tableau_to_foundation">%1$s %2$s foundation yuvasına taşınabilir.</string>
+    <string name="hint_uncover_face_down">%1$s %2$s taşınarak alttaki kapalı kart açılabilir.</string>
+    <string name="hint_waste_to_tableau">Waste\'teki %1$s %2$s sütuna taşınabilir.</string>
+    <string name="hint_tableau_to_column">%1$s %2$s sütun %3$d\'ye taşınabilir.</string>
+
+    <!-- Settings Root -->
+    <string name="settings_title">Ayarlar</string>
+    <string name="settings_gameplay">Oynanış</string>
+    <string name="settings_sound_and_haptics">Ses ve Titreşim</string>
+    <string name="settings_sound">Ses</string>
+    <string name="settings_haptics">Titreşim</string>
+    <string name="settings_appearance">Görünüm</string>
+    <string name="settings_language">Dil</string>
+    <string name="settings_about">Hakkında</string>
+
+    <!-- Gameplay Settings -->
+    <string name="settings_tap_to_place">Dokunarak yerleştir</string>
+    <string name="settings_tap_to_place_desc">Açıkken bir karta dokunduğunda kart uygun yere otomatik taşınır. Kapalıyken kartları yalnızca sürükleyerek yerleştirirsin.</string>
+    <string name="settings_keep_screen_on">Ekranı açık tut</string>
+    <string name="settings_keep_screen_on_desc">Oyun ekranı açıkken ekranın kapanmasını önler.</string>
+    <string name="settings_reset_stats">İstatistikleri sıfırla</string>
+    <string name="settings_reset_stats_desc">Tüm kazanma/oynanma kayıtlarını sil</string>
+
+    <!-- Sound & Haptics Settings -->
+    <string name="settings_game_sound">Oyun sesi</string>
+    <string name="settings_game_sound_desc">Tüm oyun seslerini açar veya kapatır.</string>
+    <string name="settings_volume">Ses seviyesi</string>
+    <string name="settings_card_sounds">Kart sesleri</string>
+    <string name="settings_card_sounds_desc">Kart çekme, çevirme ve bırakma sesleri.</string>
+    <string name="settings_win_sound">Zafer sesi</string>
+    <string name="settings_win_sound_desc">Oyun kazanıldığında zafer melodisi çalar.</string>
+    <string name="settings_game_haptics">Oyun titreşimi</string>
+    <string name="settings_game_haptics_desc">Kart hareketlerinde dokunsal geri bildirim sağlar.</string>
+    <string name="settings_invalid_move_haptics">Geçersiz hamlede titreşim</string>
+    <string name="settings_invalid_move_haptics_desc">Geçersiz bir hamle yapıldığında titreşim verir.</string>
+
+    <!-- Appearance Settings -->
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_system">Sistem teması</string>
+    <string name="settings_theme_light">Açık tema</string>
+    <string name="settings_theme_dark">Karanlık tema</string>
+    <string name="settings_dynamic_color">Dinamik renk</string>
+    <string name="settings_dynamic_color_desc">Android 12+ sistem duvar kağıdı renklerini kullanır.</string>
+    <string name="settings_card_back">Kart arkası rengi</string>
+    <string name="settings_card_back_primary">Birincil</string>
+    <string name="settings_card_back_secondary">İkincil</string>
+    <string name="settings_card_back_tertiary">Üçüncül</string>
+    <string name="settings_animations">Animasyonlar</string>
+    <string name="settings_animations_desc">Kart hareket animasyonlarını ve efektleri gösterir.</string>
+
+    <!-- Language Settings -->
+    <string name="language_system">Sistem varsayılanı (System default)</string>
+    <string name="language_turkish">Türkçe</string>
+    <string name="language_english">English</string>
+
+    <!-- About Screen -->
+    <string name="about_whats_new">Neler yeni?</string>
+    <string name="about_whats_new_desc">Sürüm notlarını gör</string>
+    <string name="about_version">Sürüm</string>
+    <string name="about_developer">Geliştirici</string>
+    <string name="about_license">Lisans</string>
+    <string name="about_license_mit">MIT</string>
+    <string name="about_source_code">Kaynak kodu</string>
+    <string name="about_source_code_desc">GitHub\'da incele</string>
+    <string name="about_report_issue">Hata bildir</string>
+    <string name="about_report_issue_desc">GitHub\'da kayıt aç</string>
+    <!-- Additional Game & Dialog Strings -->
+    <string name="game_ready_title">Yakında</string>
+    <string name="game_ready_desc">Bu solitaire modu şu anda geliştirme aşamasındadır.</string>
+    <string name="dialog_new_game">Yeni Oyun</string>
+    <string name="dialog_return_home">Ana Menü</string>
+    <string name="dialog_cancel">İptal</string>
+    <string name="result_title">Tebrikler, Kazandınız!</string>
+    <string name="result_new_record">Yeni Rekor!</string>
+    <string name="score_title">Skor</string>
+    <string name="stats_win_ratio">Kazanma Oranı</string>
+</resources>

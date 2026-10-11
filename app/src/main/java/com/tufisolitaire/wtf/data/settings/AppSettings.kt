@@ -12,6 +12,12 @@ enum class CardBackStyle {
   TERTIARY,
 }
 
+enum class AppLanguage {
+  SYSTEM,
+  TR,
+  EN,
+}
+
 data class AppSettings(
   val tapToPlace: Boolean = false,
   val keepScreenOn: Boolean = true,
@@ -25,4 +31,5 @@ data class AppSettings(
   val dynamicColor: Boolean = true,
   val cardBack: CardBackStyle = CardBackStyle.PRIMARY,
   val animationsEnabled: Boolean = true,
+  val appLanguage: AppLanguage = AppLanguage.SYSTEM,
 )

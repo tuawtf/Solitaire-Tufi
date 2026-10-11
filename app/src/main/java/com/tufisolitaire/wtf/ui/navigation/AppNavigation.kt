@@ -61,7 +61,6 @@ fun AppNavigation(
     composable(Screen.Settings.route) {
       val settingsViewModel: com.tufisolitaire.wtf.ui.settings.SettingsViewModel = viewModel()
       com.tufisolitaire.wtf.ui.settings.SettingsHomeScreen(
-        viewModel = settingsViewModel,
         onNavigateToSection = { route -> navController.navigate(route) },
         onNavigateBack = { navController.popBackStack() },
       )
@@ -83,17 +82,17 @@ fun AppNavigation(
       )
     }
 
-    composable(Screen.SettingsHaptics.route) {
+    composable(Screen.SettingsAppearance.route) {
       val settingsViewModel: com.tufisolitaire.wtf.ui.settings.SettingsViewModel = viewModel()
-      com.tufisolitaire.wtf.ui.settings.HapticsSettingsScreen(
+      com.tufisolitaire.wtf.ui.settings.AppearanceSettingsScreen(
         viewModel = settingsViewModel,
         onNavigateBack = { navController.popBackStack() },
       )
     }
 
-    composable(Screen.SettingsAppearance.route) {
+    composable(Screen.SettingsLanguage.route) {
       val settingsViewModel: com.tufisolitaire.wtf.ui.settings.SettingsViewModel = viewModel()
-      com.tufisolitaire.wtf.ui.settings.AppearanceSettingsScreen(
+      com.tufisolitaire.wtf.ui.settings.LanguageSettingsScreen(
         viewModel = settingsViewModel,
         onNavigateBack = { navController.popBackStack() },
       )
@@ -142,7 +141,6 @@ fun AppNavigation(
         } catch (_: Exception) {
           DrawMode.DRAW_ONE
         }
-
         val klondikeViewModel: KlondikeViewModel = viewModel()
         KlondikeGameRoute(
           viewModel = klondikeViewModel,

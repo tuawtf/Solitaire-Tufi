@@ -71,6 +71,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     viewModelScope.launch { repository.setAnimationsEnabled(enabled) }
   }
 
+  fun setAppLanguage(language: com.tufisolitaire.wtf.data.settings.AppLanguage) {
+    viewModelScope.launch { repository.setAppLanguage(language) }
+  }
+
   fun resetStats() {
     viewModelScope.launch {
       val database = com.tufisolitaire.wtf.data.stats.SolitaireDatabase.getDatabase(getApplication())

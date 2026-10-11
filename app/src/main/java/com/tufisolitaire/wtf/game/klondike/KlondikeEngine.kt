@@ -7,13 +7,15 @@ import com.tufisolitaire.wtf.game.GameType
 import com.tufisolitaire.wtf.game.Suit
 import java.util.ArrayDeque
 import kotlin.math.min
+import com.tufisolitaire.wtf.R
+import com.tufisolitaire.wtf.ui.util.UiText
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 data class HintInfo(
-  val message: String,
+  val message: UiText,
   val card: CardModel?,
 )
 
@@ -466,7 +468,11 @@ class KlondikeEngine(
       val fTop = state.foundations[wasteCard.suit]?.lastOrNull()
       if (wasteCard.canStackOnFoundation(fTop)) {
         return HintInfo(
-          message = "Waste'teki ${wasteCard.rank.label} ${wasteCard.suit.symbol} foundation yuvasına taşınabilir.",
+          message = UiText.StringResource(
+            R.string.hint_waste_to_foundation,
+            wasteCard.rank.label,
+            wasteCard.suit.symbol,
+          ),
           card = wasteCard,
         )
       }
@@ -479,7 +485,11 @@ class KlondikeEngine(
         val fTop = state.foundations[top.suit]?.lastOrNull()
         if (top.canStackOnFoundation(fTop)) {
           return HintInfo(
-            message = "${top.rank.label} ${top.suit.symbol} foundation yuvasına taşınabilir.",
+            message = UiText.StringResource(
+              R.string.hint_tableau_to_foundation,
+              top.rank.label,
+              top.suit.symbol,
+            ),
             card = top,
           )
         }
@@ -495,7 +505,11 @@ class KlondikeEngine(
           if (fromIdx == toIdx) continue
           if (movingCard.canStackOnTableau(toCol.lastOrNull())) {
             return HintInfo(
-              message = "${movingCard.rank.label} ${movingCard.suit.symbol} taşınarak alttaki kapalı kart açılabilir.",
+              message = UiText.StringResource(
+                R.string.hint_uncover_face_down,
+                movingCard.rank.label,
+                movingCard.suit.symbol,
+              ),
               card = movingCard,
             )
           }
@@ -508,7 +522,11 @@ class KlondikeEngine(
       for (col in state.tableau) {
         if (wasteCard.canStackOnTableau(col.lastOrNull())) {
           return HintInfo(
-            message = "Waste'teki ${wasteCard.rank.label} ${wasteCard.suit.symbol} sütuna taşınabilir.",
+            message = UiText.StringResource(
+              R.string.hint_waste_to_tableau,
+              wasteCard.rank.label,
+              wasteCard.suit.symbol,
+            ),
             card = wasteCard,
           )
         }
@@ -527,7 +545,12 @@ class KlondikeEngine(
           if (movingCard.canStackOnTableau(toTop)) {
             if (movingCard.rank == CardRank.KING && toTop == null && idx == 0) continue
             return HintInfo(
-              message = "${movingCard.rank.label} ${movingCard.suit.symbol} sütun ${toIdx + 1}'e taşınabilir.",
+              message = UiText.StringResource(
+                R.string.hint_tableau_to_column,
+                movingCard.rank.label,
+                movingCard.suit.symbol,
+                toIdx + 1,
+              ),
               card = movingCard,
             )
           }
@@ -538,14 +561,14 @@ class KlondikeEngine(
     // 6. Draw from stock
     if (state.stock.isNotEmpty()) {
       return HintInfo(
-        message = "Desteden yeni kart çekebilirsiniz.",
+        message = UiText.StringResource(R.string.hint_draw_stock),
         card = null,
       )
     }
 
     if (state.waste.isNotEmpty() && state.cardsPlayedSinceStockRecycle > 0) {
       return HintInfo(
-        message = "Desteyi geri dönüştürerek kartları yeniden gözden geçirebilirsiniz.",
+        message = UiText.StringResource(R.string.hint_recycle_stock),
         card = null,
       )
     }

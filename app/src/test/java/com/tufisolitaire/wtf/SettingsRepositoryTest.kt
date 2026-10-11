@@ -29,5 +29,6 @@ class SettingsRepositoryTest {
     assertTrue("dynamic_color default must be true", defaultSettings.dynamicColor)
     assertEquals("card_back default must be PRIMARY", CardBackStyle.PRIMARY, defaultSettings.cardBack)
     assertTrue("animations_enabled default must be true", defaultSettings.animationsEnabled)
+    assertEquals("app_language default must be SYSTEM", com.tufisolitaire.wtf.data.settings.AppLanguage.SYSTEM, defaultSettings.appLanguage)
   }
 }

@@ -13,7 +13,7 @@ sealed class Screen(val route: String) {
   data object Settings : Screen("settings")
   data object SettingsGameplay : Screen("settings/gameplay")
   data object SettingsSound : Screen("settings/sound")
-  data object SettingsHaptics : Screen("settings/haptics")
   data object SettingsAppearance : Screen("settings/appearance")
+  data object SettingsLanguage : Screen("settings/language")
   data object SettingsAbout : Screen("settings/about")
 }

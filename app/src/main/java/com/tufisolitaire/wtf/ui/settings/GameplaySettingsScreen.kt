@@ -12,7 +12,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -23,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,9 +32,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tufisolitaire.wtf.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,10 +52,10 @@ fun GameplaySettingsScreen(
     AlertDialog(
       onDismissRequest = { showResetDialog = false },
       title = {
-        Text("İstatistikleri Sıfırla")
+        Text(stringResource(R.string.dialog_reset_stats_title))
       },
       text = {
-        Text("Tüm kazanma/oynanma sayıları silinecek. Devam eden oyun etkilenmez.")
+        Text(stringResource(R.string.dialog_reset_stats_message))
       },
       confirmButton = {
         TextButton(
@@ -63,7 +65,10 @@ fun GameplaySettingsScreen(
           },
           modifier = Modifier.testTag("confirm_reset_stats_button"),
         ) {
-          Text("Sıfırla", color = MaterialTheme.colorScheme.error)
+          Text(
+            stringResource(R.string.action_reset),
+            color = MaterialTheme.colorScheme.error,
+          )
         }
       },
       dismissButton = {
@@ -71,7 +76,7 @@ fun GameplaySettingsScreen(
           onClick = { showResetDialog = false },
           modifier = Modifier.testTag("cancel_reset_stats_button"),
         ) {
-          Text("İptal")
+          Text(stringResource(R.string.action_cancel))
         }
       },
     )
@@ -79,10 +84,10 @@ fun GameplaySettingsScreen(
 
   Scaffold(
     topBar = {
-      CenterAlignedTopAppBar(
+      TopAppBar(
         title = {
           Text(
-            text = "Oynanış",
+            text = stringResource(R.string.settings_gameplay),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
           )
@@ -94,11 +99,11 @@ fun GameplaySettingsScreen(
           ) {
             Icon(
               imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-              contentDescription = "Geri",
+              contentDescription = stringResource(R.string.action_back),
             )
           }
         },
-        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+        colors = TopAppBarDefaults.topAppBarColors(
           containerColor = MaterialTheme.colorScheme.surface,
           titleContentColor = MaterialTheme.colorScheme.onSurface,
         ),
@@ -123,14 +128,14 @@ fun GameplaySettingsScreen(
         ListItem(
           headlineContent = {
             Text(
-              text = "Dokunarak yerleştir",
+              text = stringResource(R.string.settings_tap_to_place),
               style = MaterialTheme.typography.titleMedium,
               fontWeight = FontWeight.SemiBold,
             )
           },
           supportingContent = {
             Text(
-              text = "Açıkken bir karta dokunduğunda kart uygun yere otomatik taşınır. Kapalıyken kartları yalnızca sürükleyerek yerleştirirsin.",
+              text = stringResource(R.string.settings_tap_to_place_desc),
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -143,21 +148,20 @@ fun GameplaySettingsScreen(
             )
           },
         )
-
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
         // Switch 2: Ekranı açık tut
         ListItem(
           headlineContent = {
             Text(
-              text = "Ekranı açık tut",
+              text = stringResource(R.string.settings_keep_screen_on),
               style = MaterialTheme.typography.titleMedium,
               fontWeight = FontWeight.SemiBold,
             )
           },
           supportingContent = {
             Text(
-              text = "Oyun sırasında ekranın kapanmasını önler.",
+              text = stringResource(R.string.settings_keep_screen_on_desc),
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -170,14 +174,13 @@ fun GameplaySettingsScreen(
             )
           },
         )
-
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
         // Item 3: İstatistikleri sıfırla
         ListItem(
           headlineContent = {
             Text(
-              text = "İstatistikleri sıfırla",
+              text = stringResource(R.string.settings_reset_stats),
               style = MaterialTheme.typography.titleMedium,
               fontWeight = FontWeight.SemiBold,
               color = MaterialTheme.colorScheme.error,
@@ -185,7 +188,7 @@ fun GameplaySettingsScreen(
           },
           supportingContent = {
             Text(
-              text = "Tüm kazanma ve oynanma verilerini kalıcı olarak siler.",
+              text = stringResource(R.string.settings_reset_stats_desc),
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

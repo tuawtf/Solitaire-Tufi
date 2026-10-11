@@ -143,7 +143,7 @@ fun HomeScreen(
           ) {
             Icon(
               imageVector = Icons.Outlined.Settings,
-              contentDescription = "Ayarlar",
+              contentDescription = stringResource(R.string.action_settings),
               tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
           }

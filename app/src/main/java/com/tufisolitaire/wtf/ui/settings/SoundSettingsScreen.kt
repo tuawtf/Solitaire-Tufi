@@ -13,7 +13,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -24,6 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,9 +31,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tufisolitaire.wtf.R
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,10 +49,10 @@ fun SoundSettingsScreen(
 
   Scaffold(
     topBar = {
-      CenterAlignedTopAppBar(
+      TopAppBar(
         title = {
           Text(
-            text = "Ses",
+            text = stringResource(R.string.settings_sound_and_haptics),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
           )
@@ -62,11 +64,11 @@ fun SoundSettingsScreen(
           ) {
             Icon(
               imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-              contentDescription = "Geri",
+              contentDescription = stringResource(R.string.action_back),
             )
           }
         },
-        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+        colors = TopAppBarDefaults.topAppBarColors(
           containerColor = MaterialTheme.colorScheme.surface,
           titleContentColor = MaterialTheme.colorScheme.onSurface,
         ),
@@ -87,18 +89,27 @@ fun SoundSettingsScreen(
           .verticalScroll(rememberScrollState())
           .padding(vertical = 8.dp),
       ) {
-        // Master Switch: Ses Efektleri
+        // ==================== GRUP 1: SES ====================
+        Text(
+          text = stringResource(R.string.settings_sound),
+          style = MaterialTheme.typography.labelLarge,
+          fontWeight = FontWeight.Bold,
+          color = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+
+        // 1. Oyun Sesi (Master Switch)
         ListItem(
           headlineContent = {
             Text(
-              text = "Ses efektleri",
+              text = stringResource(R.string.settings_game_sound),
               style = MaterialTheme.typography.titleMedium,
               fontWeight = FontWeight.SemiBold,
             )
           },
           supportingContent = {
             Text(
-              text = "Tüm oyun içi ses efektlerini açar veya kapatır.",
+              text = stringResource(R.string.settings_game_sound_desc),
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -112,23 +123,21 @@ fun SoundSettingsScreen(
           },
         )
 
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        val soundSubAlpha = if (settings.soundEnabled) 1f else 0.38f
 
-        val subControlsAlpha = if (settings.soundEnabled) 1f else 0.38f
-
-        // Slider: Ses Seviyesi
+        // 2. Ses Seviyesi Slider
         Column(
           modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .alpha(subControlsAlpha),
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .alpha(soundSubAlpha),
         ) {
           Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
           ) {
             Text(
-              text = "Ses seviyesi",
+              text = stringResource(R.string.settings_volume),
               style = MaterialTheme.typography.titleMedium,
               fontWeight = FontWeight.SemiBold,
               modifier = Modifier.weight(1f),
@@ -150,20 +159,18 @@ fun SoundSettingsScreen(
           )
         }
 
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-
-        // Switch: Kart Sesleri
+        // 3. Kart Sesleri Switch
         ListItem(
           headlineContent = {
             Text(
-              text = "Kart sesleri",
+              text = stringResource(R.string.settings_card_sounds),
               style = MaterialTheme.typography.titleMedium,
               fontWeight = FontWeight.SemiBold,
             )
           },
           supportingContent = {
             Text(
-              text = "Kart çekme, çevirme ve dağıtma sesleri.",
+              text = stringResource(R.string.settings_card_sounds_desc),
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -176,23 +183,21 @@ fun SoundSettingsScreen(
               modifier = Modifier.testTag("switch_card_sounds"),
             )
           },
-          modifier = Modifier.alpha(subControlsAlpha),
+          modifier = Modifier.alpha(soundSubAlpha),
         )
 
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-
-        // Switch: Kazanma Sesi
+        // 4. Zafer Sesi Switch
         ListItem(
           headlineContent = {
             Text(
-              text = "Kazanma sesi",
+              text = stringResource(R.string.settings_win_sound),
               style = MaterialTheme.typography.titleMedium,
               fontWeight = FontWeight.SemiBold,
             )
           },
           supportingContent = {
             Text(
-              text = "Oyun kazanıldığında çalan kutlama sesi.",
+              text = stringResource(R.string.settings_win_sound_desc),
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -205,7 +210,74 @@ fun SoundSettingsScreen(
               modifier = Modifier.testTag("switch_win_sound"),
             )
           },
-          modifier = Modifier.alpha(subControlsAlpha),
+          modifier = Modifier.alpha(soundSubAlpha),
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // ==================== GRUP 2: TİTREŞİM ====================
+        Text(
+          text = stringResource(R.string.settings_haptics),
+          style = MaterialTheme.typography.labelLarge,
+          fontWeight = FontWeight.Bold,
+          color = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+
+        // 1. Titreşim (Master Switch)
+        ListItem(
+          headlineContent = {
+            Text(
+              text = stringResource(R.string.settings_game_haptics),
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = FontWeight.SemiBold,
+            )
+          },
+          supportingContent = {
+            Text(
+              text = stringResource(R.string.settings_game_haptics_desc),
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          },
+          trailingContent = {
+            Switch(
+              checked = settings.hapticsEnabled,
+              onCheckedChange = viewModel::setHapticsEnabled,
+              modifier = Modifier.testTag("switch_haptics_enabled"),
+            )
+          },
+        )
+
+        val hapticsSubAlpha = if (settings.hapticsEnabled) 1f else 0.38f
+
+        // 2. Geçersiz Hamlede Titreşim Switch
+        ListItem(
+          headlineContent = {
+            Text(
+              text = stringResource(R.string.settings_invalid_move_haptics),
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = FontWeight.SemiBold,
+            )
+          },
+          supportingContent = {
+            Text(
+              text = stringResource(R.string.settings_invalid_move_haptics_desc),
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          },
+          trailingContent = {
+            Switch(
+              checked = settings.hapticsInvalidMove,
+              onCheckedChange = viewModel::setHapticsInvalidMove,
+              enabled = settings.hapticsEnabled,
+              modifier = Modifier.testTag("switch_haptics_invalid_move"),
+            )
+          },
+          modifier = Modifier.alpha(hapticsSubAlpha),
         )
       }
     }
