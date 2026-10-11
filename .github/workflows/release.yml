@@ -103,8 +103,19 @@ jobs:
             echo "::error::Release imzalama secret'ları tanımlı değil (KEYSTORE_BASE64 eksik)!"
             exit 1
           fi
-          echo "$KEYSTORE_BASE64" \vert{} base64 -d > "${{ github.workspace }}/release.keystore"
- 
+
+          KEYSTORE_FILE="${{ github.workspace }}/release.keystore"
+
+          # 1. Aşama decode
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_FILE"
+
+          # Eğer hala Base64 metni ise (MII ile başlıyorsa), 2. kez decode et
+          if file "$KEYSTORE_FILE" | grep -qi "text"; then
+            echo "Çift Base64 tespit edildi, ikinci aşama çözülüyor..."
+            base64 -d "$KEYSTORE_FILE" > "${KEYSTORE_FILE}.tmp"
+            mv "${KEYSTORE_FILE}.tmp" "$KEYSTORE_FILE"
+          fi
+
       - name: Inspect Keystore
         env:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
