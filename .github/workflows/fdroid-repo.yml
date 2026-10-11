@@ -1,0 +1,96 @@
+name: Publish F-Droid Repo
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Build & Release Android App"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+
+jobs:
+  publish-fdroid-repo:
+    name: Build & Publish F-Droid Repository
+    # Yalnızca manuel tetiklendiğinde veya workflow_run başarıyla bittiğinde çalış
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository (main)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-repo
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install fdroidserver & dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install fdroidserver androguard
+          # Android SDK build-tools doğrulaması
+          echo "ANDROID_HOME=${ANDROID_HOME}" >> $GITHUB_ENV
+          echo "PATH=${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/build-tools/34.0.0:${PATH}" >> $GITHUB_PATH
+
+      - name: Validate secrets and decode keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::KEYSTORE_BASE64, STORE_PASSWORD, KEY_PASSWORD tanımlı değil"
+            exit 1
+          fi
+
+          # Mask secret values
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_PASSWORD"
+
+          ALIAS="${KEY_ALIAS:-upload}"
+          echo "::add-mask::$ALIAS"
+          echo "RESOLVED_KEY_ALIAS=$ALIAS" >> $GITHUB_ENV
+
+          WORKDIR="${RUNNER_TEMP}/fdroid_workspace"
+          mkdir -p "$WORKDIR"
+          echo "FDROID_WORKDIR=$WORKDIR" >> $GITHUB_ENV
+
+          # Keystore dosyasını geçici çalışma klasörüne çöz
+          echo "$KEYSTORE_BASE64" | base64 -d > "$WORKDIR/keystore.jks"
+          chmod 600 "$WORKDIR/keystore.jks"
+
+      - name: Setup F-Droid workspace & configuration
+        env:
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          WORKDIR="${FDROID_WORKDIR}"
+          REPO_NAME_ONLY="${GITHUB_REPOSITORY#*/}"
+          REPO_OWNER="${GITHUB_REPOSITORY%/*}"
+          REPO_URL="https://${REPO_OWNER}.github.io/${REPO_NAME_ONLY}/repo"
+
+          echo "REPO_NAME_ONLY=$REPO_NAME_ONLY" >> $GITHUB_ENV
+          echo "REPO_URL=$REPO_URL" >> $GITHUB_ENV
+
+          mkdir -p "$WORKDIR/fdroid/repo"
+          mkdir -p "$WORKDIR/fdroid/metadata/com.tufisolitaire.wtf"
+
+          # fdroid/config.yml oluştur (Yalnızca geçici klasörde kalır)
+          cat <<EOF > "$WORKDIR/fdroid/config.yml"
+repo_url: "${REPO_URL}"
+repo_name: "Solitaire"
+repo_description: "Solitaire (Klondike) - Modern, reklamsız ve açık kaynaklı kart oyunu. / Modern, ad-free and open-source solitaire game."
+repo_keyalias: "${RESOLVED_KEY_ALIAS}"
+keystore: "${WORKDIR}/keystore.jks"
+keystorepass: "${STORE_PASSWORD}"
+keypass: "${KEY_PASSWORD}"
+keydname: "CN=Solitaire, O=Tuna Demir, C=TR"
+archive_older: 0
